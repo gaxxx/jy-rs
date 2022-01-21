@@ -5,9 +5,9 @@ use std::mem;
 
 use byteorder::{LittleEndian, ReadBytesExt};
 
-const ENTRY_SCENE: i32 = 70;
-const ENTRY_X: i32 = 19;
-const ENTRY_Y: i32 = 20;
+pub const ENTRY_SCENE: i32 = 70;
+pub const ENTRY_X: i32 = 19;
+pub const ENTRY_Y: i32 = 20;
 
 // CC.MWidth=480;       --主地图宽
 const MAIN_WIDTH: usize = 480;
@@ -18,10 +18,15 @@ pub const SCENE_WIDTH: usize = 64;
 // CC.SHeight=64;
 pub const SCENE_HEIGHT: usize = 64;
 // CC.DNUM=200;       --D*每个场景的事件数
-pub const DNUM: usize = 64;
+pub const DNUM: usize = 200;
 
-// CC.XScale=CONFIG.XScale;    --贴图一半的宽高
-// CC.YScale=CONFIG.YScale;
+// CONFIG.XSCALE = 18    -- 贴图宽度的一半
+pub const XSCALE: usize = 18;
+// CONFIG.YSCALE = 9     -- 贴图高度的一半
+pub const YSCALE: usize = 9;
+
+// CC.XSCALE=CONFIG.XSCALE;    --贴图一半的宽高
+// CC.YSCALE=CONFIG.YSCALE;
 
 /*
 CC.TEAM_NUM=6;          --队伍人数
