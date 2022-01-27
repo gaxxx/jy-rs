@@ -1,6 +1,7 @@
+#![feature(default_free_fn)]
+
 use bevy::prelude::*;
-use jy::admin;
-use jy::Settings;
+use jy::prelude::*;
 
 fn main() {
     let mut main_app = App::new();
@@ -8,7 +9,9 @@ fn main() {
     main_app
         .insert_resource(settings)
         .add_plugins(DefaultPlugins)
-        .add_plugin(admin::Plugin)
+        .add_plugin(AdminPlugin)
+        .add_plugin(GamePlugin)
+        .run()
     ;
 
     main_app.run();

@@ -1,8 +1,8 @@
+#![feature(array_methods)]
+extern crate core;
+
+pub mod prelude;
+
 pub mod admin;
-mod settings;
-
-pub use settings::Settings;
-
-
-
-
+pub mod settings;
+pub mod game;
