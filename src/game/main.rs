@@ -30,10 +30,6 @@ impl AddSubState<GameState, MainState> for App {
             .init_non_send_resource::<SubState<MainState>>()
             .add_state(child)
             .add_system_set(
-                SystemSet::on_enter(parent.clone())
-                    .with_system(main_init)
-            )
-            .add_system_set(
                 SystemSet::on_update(parent)
                     .with_system(main_update.exclusive_system())
             )
@@ -45,6 +41,9 @@ impl bevy::prelude::Plugin for Plugin {
         app
             .add_asset::<GrpAsset>()
             .add_asset_loader(GrpLoader)
+            .add_system_set(
+                SystemSet::on_enter(GameState::Game).with_system(main_init)
+            )
             .add_sub_state(GameState::Game, MainState::None)
         ;
     }

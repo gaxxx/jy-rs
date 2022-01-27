@@ -133,7 +133,7 @@ impl bevy::prelude::Plugin for Plugin {
 impl AddSubState<GameState, SplashState> for App {
     fn add_sub_state(&mut self, _: GameState, child: SplashState) -> &mut Self {
         self
-            .add_state(SplashState::None)
+            .add_state(child)
             .init_non_send_resource::<SubState<SplashState>>()
             .add_system_set(SystemSet::on_update(GameState::Splash)
                                 .with_system(splash_update.exclusive_system()),
