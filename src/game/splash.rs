@@ -6,24 +6,11 @@ use num_traits::{FromPrimitive, ToPrimitive};
 
 use bevy::{prelude::*};
 use bevy::app::AppExit;
-use bevy::window::{WindowId, WindowResized};
 
 use crate::game::{AddSubState, GameState};
 use crate::substate;
 
 pub struct Plugin;
-
-pub struct BackGroundResource {
-    resource: Vec<BackGround>,
-}
-
-impl BackGroundResource {
-    fn new() -> Self {
-        BackGroundResource {
-            resource: vec![],
-        }
-    }
-}
 
 #[derive(Component)]
 pub struct SplashScreen;
@@ -103,26 +90,14 @@ pub struct SplashOption;
 #[derive(Component)]
 pub struct SplashLoadOption;
 
-#[derive(Debug)]
-pub struct BackGround {
-    id: Entity,
-    image: Handle<Image>,
-    wid: WindowId,
-}
-
 impl bevy::prelude::Plugin for Plugin {
     fn build(&self, app: &mut App) {
         app
-            .insert_resource(BackGroundResource::new())
             .add_system_set(SystemSet::on_enter(GameState::Splash).with_system(setup_splash))
             .add_system_set(SystemSet::on_exit(GameState::Splash)
-                .with_system(end_splash)
                 .with_system(despawn_screen::<SplashScreen>)
             )
             .add_sub_state(GameState::Splash, SplashState::None)
-            // handle window scales
-
-            .add_system(setup_scale)
             // select options
             .insert_resource(MainOption::Start)
 
@@ -161,76 +136,18 @@ substate!(splash_update, SplashState, {
         )
 });
 
-pub fn end_splash(mut bgs: ResMut<BackGroundResource>) {
-    println!("end splash");
-    bgs.resource.clear();
-}
-
-pub fn setup_splash(mut commands: Commands, asset_server: Res<AssetServer>, windows: Res<Windows>, mut bgs: ResMut<BackGroundResource>,
+pub fn setup_splash(mut commands: Commands, asset_server: Res<AssetServer>,
                     mut state: ResMut<State<SplashState>>) {
     println!("setup splash");
     let texture_handle = asset_server.load("pic/title.png");
     commands.spawn_bundle(OrthographicCameraBundle::new_2d()).insert(SplashScreen);
-    let id = commands.spawn_bundle(SpriteBundle {
+    commands.spawn_bundle(SpriteBundle {
         texture: texture_handle.clone(),
         ..Default::default()
-    }).insert(SplashScreen).id();
-    bgs.resource.push(
-        BackGround {
-            image: texture_handle,
-            id,
-            wid: windows.get_primary().unwrap().id(),
-        }
-    );
+    }).insert(SplashScreen);
     state.set(SplashState::Init).unwrap();
 }
 
-fn setup_scale(mut ev_asset: EventReader<AssetEvent<Image>>,
-               mut ev_wsize: EventReader<WindowResized>,
-               assets: Res<Assets<Image>>,
-               mut query: Query<&mut Transform>,
-               windows: Res<Windows>,
-               bgs: Res<BackGroundResource>) {
-    let mut do_scale = |bg: &BackGround| {
-        if let Some(img) = assets.get(bg.image.clone()) {
-            if let Ok(mut t) = query.get_mut(bg.id) {
-                if let Some(window) = windows.get(bg.wid) {
-                    t.scale.x = window.width() / img.texture_descriptor.size.width as f32;
-                    t.scale.y = window.height() / img.texture_descriptor.size.height as f32;
-                    info!("do scale done {:?}", bg);
-                }
-            }
-        }
-    };
-
-    for ev in ev_asset.iter() {
-        match ev {
-            AssetEvent::Created { handle } => {
-                info!("splash loaded {:?}", handle);
-                bgs.resource.iter().for_each(|v| {
-                    if *handle == v.image {
-                        do_scale(v)
-                    }
-                });
-            }
-            _ => {}
-        }
-    }
-    for ev in ev_wsize.iter() {
-        match ev {
-            WindowResized {
-                id,
-                ..
-            } => {
-                bgs.resource.iter().for_each(|v| {
-                    if v.wid.is_primary() && v.wid.eq(&id) {
-                        do_scale(v)
-                    }
-                })
-            }
-        }
-    }
-}
 
 /// This system prints 'A' key state
 fn keyboard_input_system(mut commands: Commands, mut keyboard_input: ResMut<Input<KeyCode>>, mut state: ResMut<State<SplashState>>,

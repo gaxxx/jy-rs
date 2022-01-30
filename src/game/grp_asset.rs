@@ -62,7 +62,6 @@ async fn load_grp<'a, 'b>(
     let out = load_context.read_asset_bytes(idx_file).await;
     match out {
         Ok(buffer_bytes) => {
-            println!("get idx len {}", buffer_bytes.len());
             let mut cursor = std::io::Cursor::new(buffer_bytes);
             while let Ok(ret) = cursor.read_u32::<LittleEndian>() {
                 idx.push(ret as usize);
@@ -76,7 +75,6 @@ async fn load_grp<'a, 'b>(
             }
         }
     };
-    println!("get idx {:?}", idx);
     load_context.set_default_asset(LoadedAsset::new(GrpAsset {
         idx: idx,
         data: bytes.into(),

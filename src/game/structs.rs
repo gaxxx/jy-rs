@@ -1,11 +1,18 @@
 #![allow(dead_code)]
 
-use std::io::Read;
-use std::mem;
+use std::{mem, slice};
+use std::io::{Cursor, Read};
+use std::sync::Arc;
 
 use byteorder::{LittleEndian, ReadBytesExt};
 
-pub const ENTRY_SCENE: i32 = 70;
+use bevy::prelude::Image;
+use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
+
+use crate::game::GrpAsset;
+use crate::read;
+
+pub const ENTRY_SCENE: usize = 70;
 pub const ENTRY_X: i32 = 19;
 pub const ENTRY_Y: i32 = 20;
 
@@ -19,6 +26,8 @@ pub const SCENE_WIDTH: usize = 64;
 pub const SCENE_HEIGHT: usize = 64;
 // CC.DNUM=200;       --D*每个场景的事件数
 pub const DNUM: usize = 200;
+
+pub const LAYER_NUM: usize = 6;
 
 // CONFIG.XSCALE = 18    -- 贴图宽度的一半
 pub const XSCALE: usize = 18;
@@ -257,18 +266,9 @@ fn to_str(v: &[u8]) -> String {
     String::from_utf8(out).unwrap()
 }
 
-macro_rules! read {
-    ($ident : ident, i16) => {
-        $ident.read_i16::<LittleEndian>().unwrap()
-    };
-    ($ident : ident, u16) => {
-        $ident.read_u16::<LittleEndian>().unwrap()
-    };
-    ($ident : ident, $val : ident, u8) => {
-        $ident.read($vall);
-    };
+pub fn rbg2rgba(c: u32) -> u32 {
+    ((c & 0xFF) << 16) + (c & 0xFF00) + ((c & 0xFF0000) >> 16) + 0xFF000000
 }
-
 
 impl Person {
     pub fn new(data: &[u8]) -> Self {
@@ -444,4 +444,122 @@ impl Scene {
     pub fn name(&self) -> String {
         to_str(&self.name)
     }
+}
+
+pub struct SceneInfo {
+    pub data: Arc<[u8]>,
+}
+
+impl SceneInfo {
+    pub fn new(gs: GrpAsset) -> Self {
+        SceneInfo {
+            data: gs.data.clone()
+        }
+    }
+
+    pub fn get_texture(&self, scene_id: usize, h: usize, w: usize, layer: usize) -> usize {
+        let i = (scene_id * LAYER_NUM + layer) * SCENE_WIDTH * SCENE_HEIGHT + h * SCENE_WIDTH + w;
+        let mut data = &self.data.as_ref()[i * 2..];
+        data.read_i16::<LittleEndian>().unwrap() as usize
+    }
+}
+
+pub struct TextureMap {
+    pub gs: GrpAsset,
+}
+
+fn parse(buf: &mut Vec<u32>, w: usize, mut c: impl std::io::Read, colors: &Vec<u32>) -> std::io::Result<()> {
+    let mut _idx = 0;
+    let mut row_num = 0;
+    while let Ok(_p) = c.read_u8() {
+        // println!("row {}", _p);
+        _idx = row_num * w;
+        row_num += 1;
+        // println!("read {}", p);
+        let empty = c.read_u8()?;
+        // println!("skip {}", empty);
+        _idx += empty as usize;
+        let next = c.read_u8()?;
+        // println!("read {}", next);
+        for _ in 0..next {
+            let c = c.read_u8()?;
+            if let Some(v) = buf.get_mut(_idx as usize) {
+                let c = *colors.get(c as usize).unwrap();
+                *v = c;
+                _idx += 1;
+            }
+        }
+    }
+    Ok(())
+}
+
+impl TextureMap {
+    pub fn new(gs: GrpAsset) -> TextureMap {
+        TextureMap {
+            gs,
+        }
+    }
+
+    pub fn get_image(&self, id: usize, colors: &Vec<u32>) -> Option<(Image, f32, f32)> {
+        let maybe_data = self.gs.idx(id as usize);
+        if maybe_data.is_none() {
+            return None;
+        }
+        let data = maybe_data.unwrap();
+        let mut c = Cursor::new(data);
+        let w = read!(c, u16);
+        let h = read!(c, u16);
+        let xoff = read!(c, i16);
+        let yoff = read!(c, i16);
+        /*
+        println!("data len {} w:{}, h:{}, xoff:{}, yoff:{}",
+                 data.len(),
+                 w, h, xoff, yoff
+        );
+
+         */
+
+        let mut decode_buf: Vec<u32> = vec![];
+        // decode_buf.resize((w * h) as usize, 0xFF206070);
+        //decode_buf.resize((w * h) as usize, rbg2rgba(0x706020));
+        decode_buf.resize((w * h) as usize, 0x0);
+
+        parse(&mut decode_buf, w as usize, &mut c, colors).unwrap();
+        let pixel_ptr = decode_buf.as_ptr() as *const u8;
+        let pixel = unsafe { slice::from_raw_parts(pixel_ptr, decode_buf.len() * 4) };
+        // decode_buf.as_ptr() as *const u8 as &[u8],
+
+        /*
+        if id == 2 {
+            decode_buf.as_slice().chunks(w as usize).for_each(|v| {
+                println!("{}", v.iter().map(|v| format!("{:0x}", v)).join(" "));
+            });
+        }
+
+         */
+
+        let image = Image::new_fill(
+            Extent3d {
+                width: w as u32,
+                height: h as u32,
+                depth_or_array_layers: 1,
+            },
+            TextureDimension::D2,
+            pixel,
+            TextureFormat::Rgba8UnormSrgb,
+        );
+
+        Some((image, xoff as f32, yoff as f32))
+    }
+}
+
+pub fn load_color(data: &[u8]) -> Vec<u32> {
+    data.chunks(3).map(|v| {
+        let mut c = Cursor::new(v);
+        let c1 = read!(c, u8) as u32;
+        let c2 = read!(c, u8) as u32;
+        let c3 = read!(c, u8) as u32;
+        let rgb = (c1 << 18) + (c2 << 10) + (c3 << 2);
+        rbg2rgba(rgb)
+    }).collect()
 }

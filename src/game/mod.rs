@@ -4,6 +4,7 @@ use std::marker::PhantomData;
 
 use bevy::{prelude::*};
 use bevy::ecs::schedule::{ShouldRun, StateData};
+pub use data_asset::DataAssetLoader;
 pub use grp_asset::{GrpAsset, GrpLoader};
 
 mod splash;
@@ -11,6 +12,7 @@ mod sound;
 mod main;
 mod grp_asset;
 pub mod structs;
+mod data_asset;
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash, Component)]
 pub enum GameState {
@@ -90,5 +92,21 @@ macro_rules! substate {
     world.cell().get_non_send_mut::<SubState<$ty>>().unwrap().val = maybe_substate;
             }
         }
+}
+
+#[macro_export]
+macro_rules! read {
+    ($ident : ident, u8) => {
+        $ident.read_u8().unwrap()
+    };
+    ($ident : ident, i16) => {
+        $ident.read_i16::<LittleEndian>().unwrap()
+    };
+    ($ident : ident, u16) => {
+        $ident.read_u16::<LittleEndian>().unwrap()
+    };
+    ($ident : ident, $val : ident, u8) => {
+        $ident.read($vall);
+    };
 }
 

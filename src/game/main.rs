@@ -1,16 +1,16 @@
 #![allow(dead_code)]
 
-use std::io::{Cursor, Read};
+use core::default::Default;
 use std::mem::size_of;
 use std::sync::Arc;
 
-use byteorder::{LittleEndian, ReadBytesExt};
-
 use bevy::{prelude::*};
-use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat, TextureUsages};
+use bevy::asset::LoadState;
+use bevy::utils::HashMap;
 
-use crate::game::{AddSubState, GameState, GrpAsset, GrpLoader, is_game, structs};
-use crate::game::structs::{Base, Person, SCENE_HEIGHT, SCENE_WIDTH, XSCALE, YSCALE};
+use crate::game::{AddSubState, GameState, GrpAsset, GrpLoader, structs};
+use crate::game::data_asset::{DataAsset, DataAssetLoader};
+use crate::game::structs::{Base, Person, SCENE_HEIGHT, SCENE_WIDTH, SceneInfo, TextureMap, XSCALE, YSCALE};
 use crate::substate;
 
 pub struct Plugin;
@@ -32,6 +32,7 @@ impl AddSubState<GameState, MainState> for App {
     fn add_sub_state(&mut self, parent: GameState, child: MainState) -> &mut Self {
         self
             .init_non_send_resource::<SubState<MainState>>()
+            .insert_resource(ImageCache::default())
             .add_state(child)
             .add_system_set(
                 SystemSet::on_update(parent)
@@ -45,6 +46,8 @@ impl bevy::prelude::Plugin for Plugin {
         app
             .add_asset::<GrpAsset>()
             .add_asset_loader(GrpLoader)
+            .add_asset::<DataAsset>()
+            .add_asset_loader(DataAssetLoader)
             .add_system_set(
                 SystemSet::on_enter(GameState::Game).with_system(main_init)
             )
@@ -70,15 +73,21 @@ fn load_data(mut commands: Commands, res: Res<AssetServer>) {
         res.load("data/alldef.grp"),
     ];
 
+    let data_h = vec![
+        res.load("data/mmap.col")
+    ];
+
     commands.insert_resource(Game {
         data: None,
-        s_all_map: [].as_ref().into(),
+        s_all_map: None,
         d_all_map: [].as_ref().into(),
         smap: None,
         cur_s: 0,
         cur_s_x: 0,
         cur_s_y: 0,
-        handles,
+        grp_handles: handles,
+        data_handles: data_h,
+        palette: vec![],
     });
 }
 
@@ -99,13 +108,15 @@ struct GameData {
 
 struct Game {
     data: Option<GameData>,
-    s_all_map: Arc<[u8]>,
+    s_all_map: Option<SceneInfo>,
     d_all_map: Arc<[u8]>,
-    smap: Option<GrpAsset>,
+    smap: Option<TextureMap>,
     cur_s: i32,
     cur_s_x: i32,
     cur_s_y: i32,
-    handles: Vec<Handle<GrpAsset>>,
+    grp_handles: Vec<Handle<GrpAsset>>,
+    data_handles: Vec<Handle<DataAsset>>,
+    palette: Vec<u32>,
 }
 
 impl GameData {
@@ -137,31 +148,37 @@ impl GameData {
 
 
 fn init_data(mut grp_assets: ResMut<Assets<GrpAsset>>,
+             mut ds_assets: ResMut<Assets<DataAsset>>,
+             server: Res<AssetServer>,
              mut state: ResMut<State<MainState>>, mut game: ResMut<Game>) {
     println!("start to init data");
     if game.data.is_some() {
         println!("data loaded\n");
         return;
     }
-    for i in game.handles.iter() {
-        if grp_assets.get(i.clone()).is_none() {
-            return;
-        }
+
+    if game.grp_handles.is_empty() {
+        panic!("ooops");
     }
 
-    game.handles.clone().into_iter().enumerate().for_each(|(idx, handle)| {
+    let iter = game.grp_handles.iter().map(|v| v.id).chain(game.data_handles.iter().map(|v| v.id));
+
+
+    if server.get_group_load_state(iter) != LoadState::Loaded {
+        return;
+    }
+
+    game.grp_handles.clone().into_iter().enumerate().for_each(|(idx, handle)| {
         let gs = grp_assets.remove(handle.clone()).unwrap();
         match idx {
             0 => {
                 game.data = Some(GameData::from(gs));
             }
             1 => {
-                game.s_all_map = {
-                    let snum = game.data.as_ref().unwrap().scenes.len();
-                    let ref_data = gs.data.as_ref();
-                    println!("smap len {} -> to {}", ref_data.len(), snum * structs::SCENE_WIDTH * structs::SCENE_HEIGHT * 12);
-                    ref_data[0..snum * structs::SCENE_WIDTH * structs::SCENE_HEIGHT * 12].into()
-                };
+                let snum = game.data.as_ref().unwrap().scenes.len();
+                let ref_data = gs.data.as_ref();
+                println!("snum {}, smap len {} -> to {}", snum, ref_data.len(), snum * structs::SCENE_WIDTH * structs::SCENE_HEIGHT * 12);
+                game.s_all_map = Some(SceneInfo::new(gs));
             }
             2 => {
                 game.d_all_map = {
@@ -174,7 +191,12 @@ fn init_data(mut grp_assets: ResMut<Assets<GrpAsset>>,
             _ => {}
         }
     });
-    game.cur_s = structs::ENTRY_SCENE;
+
+    if let Some(h) = game.data_handles.clone().into_iter().next() {
+        let ds = ds_assets.remove(h.clone()).unwrap();
+        game.palette = structs::load_color(ds.data.as_ref());
+    }
+    game.cur_s = structs::ENTRY_SCENE as i32;
     game.cur_s_x = structs::ENTRY_X;
     game.cur_s_y = structs::ENTRY_Y;
     state.set(MainState::SMap).unwrap();
@@ -198,38 +220,7 @@ fn init_data(mut grp_assets: ResMut<Assets<GrpAsset>>,
 
 fn update() {}
 
-fn draw(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
-    println!("draw data");
-    let mut image = Image::new_fill(
-        Extent3d {
-            width: SIZE.0,
-            height: SIZE.1,
-            depth_or_array_layers: 1,
-        },
-        TextureDimension::D2,
-        &[0, 255, 0, 255],
-        TextureFormat::Rgba8Unorm,
-    );
-    image.texture_descriptor.usage =
-        TextureUsages::COPY_DST | TextureUsages::STORAGE_BINDING | TextureUsages::TEXTURE_BINDING;
-    let image = images.add(image);
-
-    commands.spawn_bundle(ImageBundle {
-        node: Node { size: Vec2::new(SIZE.0 as f32, SIZE.1 as f32) },
-        image: UiImage::from(image.clone()),
-        /*
-        sprite: Sprite {
-            custom_size: Some(Vec2::new(SIZE.0 as f32, SIZE.1 as f32)),
-            ..Default::default()
-        },
-        texture: image.clone(),
-         */
-        ..Default::default()
-    })
-        .insert(MapScreen)
-        .insert(MainScreen);
-    commands.spawn_bundle(OrthographicCameraBundle::new_2d()).insert(MainScreen);
-}
+fn draw(_commands: Commands, _images: ResMut<Assets<Image>>) {}
 
 
 fn get_main_stage() -> SystemStage {
@@ -262,34 +253,34 @@ fn get_main_stage() -> SystemStage {
     )
 }
 
-fn load_smap(mut _commands: Commands, res: Res<AssetServer>, mut game: ResMut<Game>) {
+fn load_smap(res: Res<AssetServer>, mut game: ResMut<Game>) {
     println!("start to load data");
     let handles = vec![
         res.load("data/smap.grp"),
         res.load("data/hdgrp.grp"),
         res.load("data/thing.grp"),
     ];
-    game.handles = handles;
+    game.grp_handles = handles;
 }
 
 fn draw_smap(mut commands: Commands,
              mut grp_assets: ResMut<Assets<GrpAsset>>,
+             server: Res<AssetServer>,
              mut _state: ResMut<State<MainState>>, mut game: ResMut<Game>,
-             mut images: ResMut<Assets<Image>>) {
+             mut images: ResMut<Assets<Image>>,
+             mut image_cache: ResMut<ImageCache>,
+) {
     // load smap & hdgr & thing
-    if game.smap.is_none() {
-        for i in game.handles.iter() {
-            if grp_assets.get(i.clone()).is_none() {
-                return;
-            }
+    if game.smap.is_none() && !game.grp_handles.is_empty() {
+        if server.get_group_load_state(game.grp_handles.iter().map(|v| v.id)) != LoadState::Loaded {
+            return;
         }
 
-        game.handles.clone().into_iter().enumerate().for_each(|(idx, handle)| {
+        game.grp_handles.clone().into_iter().enumerate().for_each(|(idx, handle)| {
             let gs = grp_assets.remove(handle.clone()).unwrap();
-            println!("test data");
             match idx {
                 0 => {
-                    game.smap = Some(gs)
+                    game.smap = Some(TextureMap::new(gs))
                 }
                 1 => {
                     // load hrgrp
@@ -301,87 +292,134 @@ fn draw_smap(mut commands: Commands,
             }
         });
 
-        draw_smap_init(&mut commands, &mut game, &mut images);
+        draw_smap_init(&mut commands, &mut game, &mut images, &server, &mut image_cache);
+        return;
     }
-}
 
-fn draw_smap_init(commands: &mut Commands, game: &mut ResMut<Game>, images: &mut ResMut<Assets<Image>>) {
-    println!("start rending");
-    game.smap.as_ref().map(|v| {
-        let x = structs::ENTRY_X;
-        let y = structs::ENTRY_Y;
-        let xoff = -1;
-        let yoff = -1;
-        //根据g_Surface的剪裁来确定循环参数。提高绘制速度
-        let istart = (0 - 1024 / 2) / (2 * XSCALE as i32) - 1 - 2;
-        let iend = (1024 - 1024 / 2) / (2 * XSCALE as i32) + 1 + 2;
+    let mut sprites = vec![];
+    let mut bundle = commands.spawn_bundle(OrthographicCameraBundle::new_2d());
+    let _parent = bundle.insert(MainScreen);
+    let x_off = 0.0;
+    let y_off = 300.0;
+    let xf = XSCALE as f32;
+    let yf = YSCALE as f32;
+    for h in 0..SCENE_HEIGHT {
+        for w in 0..SCENE_WIDTH {
+            let wf = w as f32;
+            let hf = h as f32;
+            let earth = game.s_all_map.as_ref().unwrap().get_texture(structs::ENTRY_SCENE, h, w, 0) / 2;
+            if earth > 0 {
+                let x_scale = (w * structs::XSCALE) as f32;
+                let y_scale = (h * structs::YSCALE) as f32;
 
-        let jstart = (0 - 768 / 2) / (2 * YSCALE as i32) - 1;
-        let jend = (768 - 768 / 2) / (2 * YSCALE as i32) + 1;
-        for j in 0..=2 * (jend - jstart) + 16 {
-            for i in istart..=iend {
-                let i1 = i + j / 2 + jstart;
-                let j1 = -i + j / 2 + j % 2 + jstart;
-                println!("i1:{}, j1:{}\n", i1, j1);
+                let mut transform = Transform::from_xyz(x_scale * 1. - hf * xf + x_off,
+                                                        -y_scale * 1. - yf * wf + y_off,
+                                                        1.0);
 
-
-                let x1 = XSCALE as i32 * (i1 - j1) + 1024 as i32 / 2;
-                let y1 = YSCALE as i32 * (i1 + j1) + 768 as i32 / 2;
-
-                println!("x1:{}, y1:{}", x1, y1);
-                let xx = x + i1 + xoff;
-                let yy = y + j1 + yoff;
-                println!("xx:{}, yy:{}", xx, yy);
-
-                if (xx >= 0) && (xx < SCENE_WIDTH as i32) && (yy >= 0) && (yy < SCENE_HEIGHT as i32) {
-                    let start = structs::SCENE_WIDTH * structs::SCENE_HEIGHT * structs::ENTRY_SCENE as usize * 6 as usize
-                        + yy as usize * structs::SCENE_WIDTH + xx as usize;
-                    let d0 = &game.s_all_map.as_ref()[start..start + 2];
-                    let d0 = i16::from_be_bytes(d0.try_into().unwrap());
-                    println!("d0:{}", d0);
-                    if d0 > 0 {
-                        let data = v.idx(4).unwrap();
-                        let mut c = Cursor::new(data);
-                        let w = c.read_i16::<LittleEndian>().unwrap();
-                        let h = c.read_i16::<LittleEndian>().unwrap();
-                        let xoff = c.read_i16::<LittleEndian>().unwrap();
-                        let yoff = c.read_i16::<LittleEndian>().unwrap();
-                        println!("data len {} w:{}, h:{}, xoff:{}, yoff:{}",
-                                 data.len(),
-                                 w, h, xoff, yoff
-                        );
-                        drop(c);
-
-                        commands.spawn_bundle(OrthographicCameraBundle::new_2d()).insert(MainScreen);
-                        let mut image = Image::new_fill(
-                            Extent3d {
-                                width: SIZE.0,
-                                height: SIZE.1,
-                                depth_or_array_layers: 1,
-                            },
-                            TextureDimension::D2,
-                            &data[8..],
-                            TextureFormat::Rgba8Unorm,
-                        );
-                        image.texture_descriptor.usage =
-                            TextureUsages::COPY_DST | TextureUsages::STORAGE_BINDING | TextureUsages::TEXTURE_BINDING;
-                        let image = images.add(image);
-
-                        commands.spawn_bundle(ImageBundle {
-                            node: Node { size: Vec2::new(SIZE.0 as f32, SIZE.1 as f32) },
-                            image: UiImage::from(image.clone()),
-                            ..Default::default()
-                        })
-                            .insert(MapScreen)
-                            .insert(MainScreen);
-
-                        return;
-                    }
+                let mut may_sprite = None;
+                if let Some((image_h, xoff, yoff)) = image_cache.get_image(earth) {
+                    transform.translation.x += xoff;
+                    transform.translation.y += yoff;
+                    transform.translation.z += wf + hf;
+                    may_sprite = Some(SpriteBundle {
+                        texture: image_h.clone(),
+                        transform: transform,
+                        ..Default::default()
+                    });
+                } else if let Some((image, xoff, yoff)) = game.smap.as_ref().unwrap().get_image(earth, &game.palette) {
+                    transform.translation.x += xoff;
+                    transform.translation.y += yoff;
+                    transform.translation.z += wf + hf;
+                    let handle = images.add(image);
+                    image_cache.cached.insert(earth, (handle.clone(), x_off, yoff));
+                    may_sprite = Some(SpriteBundle {
+                        texture: handle,
+                        transform: transform,
+                        ..Default::default()
+                    });
+                }
+                if may_sprite.is_some() {
+                    sprites.push(may_sprite.unwrap());
                 }
             }
         }
-    });
+    }
+    commands.spawn_batch(sprites.into_iter());
+}
+
+fn draw_smap_init(commands: &mut Commands, game: &mut ResMut<Game>, images: &mut ResMut<Assets<Image>>,
+                  _asset_server: &Res<AssetServer>,
+                  image_cache: &mut ResMut<ImageCache>,
+) {
+    let mut bundle = commands.spawn_bundle(OrthographicCameraBundle::new_2d());
+    let _parent = bundle.insert(MainScreen);
+    let x_off = 0.0;
+    let y_off = 300.0;
+    let xf = XSCALE as f32;
+    let yf = YSCALE as f32;
+    let mut sprites = vec![];
+    for h in 0..SCENE_HEIGHT {
+        for w in 0..SCENE_WIDTH {
+            let wf = w as f32;
+            let hf = h as f32;
+            let earth = game.s_all_map.as_ref().unwrap().get_texture(structs::ENTRY_SCENE, h, w, 0) / 2;
+            if earth > 0 {
+                let x_scale = (w * structs::XSCALE) as f32;
+                let y_scale = (h * structs::YSCALE) as f32;
+
+                let mut transform = Transform::from_xyz(x_scale * 1. - hf * xf + x_off,
+                                                        -y_scale * 1. - yf * wf + y_off,
+                                                        1.0);
+
+                let mut may_sprite = None;
+                if let Some((image_h, xoff, yoff)) = image_cache.get_image(earth) {
+                    transform.translation.x += xoff;
+                    transform.translation.y += yoff;
+                    transform.translation.z += wf + hf;
+                    may_sprite = Some(SpriteBundle {
+                        texture: image_h.clone(),
+                        transform: transform,
+                        ..Default::default()
+                    });
+                } else if let Some((image, xoff, yoff)) = game.smap.as_ref().unwrap().get_image(earth, &game.palette) {
+                    transform.translation.x += xoff;
+                    transform.translation.y += yoff;
+                    transform.translation.z += wf + hf;
+                    let handle = images.add(image);
+                    image_cache.cached.insert(earth, (handle.clone(), x_off, yoff));
+                    may_sprite = Some(SpriteBundle {
+                        texture: handle,
+                        transform: transform,
+                        ..Default::default()
+                    });
+                }
+
+                if may_sprite.is_some() {
+                    sprites.push(may_sprite.unwrap());
+                }
+            }
+        }
+    }
+    commands.spawn_batch(sprites.into_iter());
+    println!("start rending");
 }
 
 
 substate!(main_update, MainState, get_main_stage());
+
+
+
+#[derive(Default)]
+struct ImageCache {
+    cached: HashMap<usize, (Handle<Image>, f32, f32)>,
+}
+
+impl ImageCache {
+    pub fn get_image(&self, id: usize) -> Option<(Handle<Image>, f32, f32)> {
+        if let Some((h, xoff, yoff)) = self.cached.get(&id) {
+            Some((h.clone(), *xoff, *yoff))
+        } else {
+            None
+        }
+    }
+}
