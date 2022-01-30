@@ -2,7 +2,5 @@
 /target
 .idea/*
 .cargo/
-rust-toolchain.toml
 assets/*
 Cargo.lock
-src/bevy

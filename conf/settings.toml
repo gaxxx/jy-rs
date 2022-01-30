@@ -1,1 +1,1 @@
-log = "debug"
+log = "trace"

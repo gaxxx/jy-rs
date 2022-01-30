@@ -1,10 +1,11 @@
 #![allow(dead_code)]
 
-use std::{mem, slice};
 use std::io::{Cursor, Read};
-use std::sync::Arc;
+use std::sync::Mutex;
+use std::{mem, slice};
 
 use byteorder::{LittleEndian, ReadBytesExt};
+use lazy_static::lazy_static;
 
 use bevy::prelude::Image;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
@@ -12,10 +13,21 @@ use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 use crate::game::GrpAsset;
 use crate::read;
 
-pub const ENTRY_SCENE: usize = 70;
-pub const ENTRY_X: i32 = 19;
-pub const ENTRY_Y: i32 = 20;
+lazy_static! {
+    pub static ref DEBUG: Mutex<bool> = Mutex::new(false);
+}
 
+pub const ENTRY_SCENE: usize = 70;
+pub const ENTRY_X: i16 = 19;
+pub const ENTRY_Y: i16 = 20;
+
+// CC.SceneXMin=11
+pub const SCENE_X_MIN: i16 = 11;
+pub const SCENE_Y_MIN: i16 = 11;
+pub const SCENE_X_MAX: i16 = 47;
+pub const SCENE_Y_MAX: i16 = 47;
+// CC.NewPersonPic=3445;                      --开始主角pic
+pub const NEW_PERSON: usize = 3445;
 // CC.MWidth=480;       --主地图宽
 const MAIN_WIDTH: usize = 480;
 // CC.MHeight=480;      --主地图高
@@ -30,9 +42,9 @@ pub const DNUM: usize = 200;
 pub const LAYER_NUM: usize = 6;
 
 // CONFIG.XSCALE = 18    -- 贴图宽度的一半
-pub const XSCALE: usize = 18;
+pub const XSCALE: f32 = 18.;
 // CONFIG.YSCALE = 9     -- 贴图高度的一半
-pub const YSCALE: usize = 9;
+pub const YSCALE: f32 = 9.;
 
 // CC.XSCALE=CONFIG.XSCALE;    --贴图一半的宽高
 // CC.YSCALE=CONFIG.YSCALE;
@@ -54,36 +66,36 @@ const SCENE_SIZE: usize = mem::size_of::<Scene>();
 #[derive(Debug)]
 pub struct Base {
     // CC.Base_S["乘船"] ={0, 0, 2} - - 起始位置(从0开始)，数据类型(0有符号 1无符号，2字符串)，长度
-    boat: i16,
+    pub boat: i16,
     // CC.Base_S["无用"] ={2, 0, 2};
-    useless: i16,
+    pub useless: i16,
     // CC.Base_S["人X"] ={4, 0, 2};
-    person_x: i16,
+    pub person_x: i16,
     // CC.Base_S["人Y"] ={6, 0, 2};
-    person_y: i16,
+    pub person_y: i16,
     // CC.Base_S["人X1"] ={8, 0, 2};
-    person_x1: i16,
+    pub person_x_scene: i16,
     // CC.Base_S["人Y1"] ={10, 0, 2};
-    person_x2: i16,
+    pub person_y_scene: i16,
     // CC.Base_S["人方向"] ={12, 0, 2};
-    person_dir: i16,
+    pub person_dir: i16,
     // CC.Base_S["船X"] ={14, 0, 2};
-    boat_x: i16,
+    pub boat_x: i16,
     // CC.Base_S["船Y"] ={16, 0, 2};
-    boat_y: i16,
+    pub boat_y: i16,
     // CC.Base_S["船X1"] ={18, 0, 2};
-    boat_x1: i16,
+    pub boat_x1: i16,
     // CC.Base_S["船Y1"] ={20, 0, 2};
-    boat_y1: i16,
+    pub boat_y1: i16,
     // CC.Base_S["船方向"] ={22, 0, 2};
-    boat_dir: i16,
+    pub boat_dir: i16,
     /*
     for i = 1,
     CC.TEAM_NUM do
     CC.Base_S["队伍"..i]={24 + 2 * (i - 1),0, 2};
     end
      */
-    teams: [i16; TEAM_NUM],
+    pub teams: [i16; TEAM_NUM],
     /*
     for i = 1,
     CC.MY_THING_NUM do
@@ -91,7 +103,7 @@ pub struct Base {
     CC.Base_S["物品数量"..i]={36 + 4 * (i - 1) +2, 0, 2};
     end
      */
-    items: [(i16, i16); MY_THING_NUM],
+    pub items: [(i16, i16); MY_THING_NUM],
 }
 
 #[derive(Debug)]
@@ -141,7 +153,6 @@ pub struct Scene {
     // CC.Scene_S["跳转口Y2"]={60,0,2}
     jump_y2: i16,
 }
-
 
 #[repr(C)]
 #[derive(Debug)]
@@ -256,13 +267,10 @@ pub struct Person {
 }
 
 fn to_str(v: &[u8]) -> String {
-    let out = v.iter().map_while(|v| {
-        if *v == 0 {
-            None
-        } else {
-            Some(*v)
-        }
-    }).collect::<Vec<u8>>();
+    let out = v
+        .iter()
+        .map_while(|v| if *v == 0 { None } else { Some(*v) })
+        .collect::<Vec<u8>>();
     String::from_utf8(out).unwrap()
 }
 
@@ -388,22 +396,18 @@ impl Base {
         Base {
             boat: read!(c, i16),
             useless: read!(c, i16),
-            person_x: read!(c,i16),
+            person_x: read!(c, i16),
             person_y: read!(c, i16),
-            person_x1: read!(c,i16),
-            person_x2: read!(c,i16),
-            person_dir: read!(c,i16),
-            boat_x: read!(c,i16),
-            boat_y: read!(c,i16),
-            boat_x1: read!(c,i16),
+            person_x_scene: read!(c, i16),
+            person_y_scene: read!(c, i16),
+            person_dir: read!(c, i16),
+            boat_x: read!(c, i16),
+            boat_y: read!(c, i16),
+            boat_x1: read!(c, i16),
             boat_y1: read!(c, i16),
             boat_dir: read!(c, i16),
-            teams: [0; TEAM_NUM].map(|_| {
-                read!(c,i16)
-            }),
-            items: [0; MY_THING_NUM].map(|_| {
-                (read!(c,i16), read!(c, i16))
-            }),
+            teams: [0; TEAM_NUM].map(|_| read!(c, i16)),
+            items: [0; MY_THING_NUM].map(|_| (read!(c, i16), read!(c, i16))),
         }
     }
 }
@@ -446,21 +450,31 @@ impl Scene {
     }
 }
 
-pub struct SceneInfo {
-    pub data: Arc<[u8]>,
-}
+pub struct SData(Vec<u8>);
 
-impl SceneInfo {
+impl SData {
     pub fn new(gs: GrpAsset) -> Self {
-        SceneInfo {
-            data: gs.data.clone()
-        }
+        SData(gs.data)
     }
 
-    pub fn get_texture(&self, scene_id: usize, h: usize, w: usize, layer: usize) -> usize {
+    pub fn get_texture(&self, scene_id: usize, h: usize, w: usize, layer: usize) -> i16 {
         let i = (scene_id * LAYER_NUM + layer) * SCENE_WIDTH * SCENE_HEIGHT + h * SCENE_WIDTH + w;
-        let mut data = &self.data.as_ref()[i * 2..];
-        data.read_i16::<LittleEndian>().unwrap() as usize
+        let mut data = &self.0[i * 2..];
+        data.read_i16::<LittleEndian>().unwrap()
+    }
+}
+
+pub struct DData(Vec<u8>);
+
+impl DData {
+    pub fn new(gs: GrpAsset) -> Self {
+        DData(gs.data)
+    }
+
+    pub fn get_d(&self, scene_id: usize, id: usize, i: usize) -> i16 {
+        let i = (scene_id * DNUM + id) * 11 + i;
+        let mut data = &self.0[i * 2..];
+        data.read_i16::<LittleEndian>().unwrap()
     }
 }
 
@@ -468,39 +482,75 @@ pub struct TextureMap {
     pub gs: GrpAsset,
 }
 
-fn parse(buf: &mut Vec<u32>, w: usize, mut c: impl std::io::Read, colors: &Vec<u32>) -> std::io::Result<()> {
+fn parse(
+    buf: &mut Vec<u32>,
+    w: usize,
+    mut c: impl std::io::Read,
+    colors: &Vec<u32>,
+) -> std::io::Result<()> {
     let mut _idx = 0;
     let mut row_num = 0;
-    while let Ok(_p) = c.read_u8() {
-        // println!("row {}", _p);
+    while let Ok(mut row_left) = c.read_u8() {
+        /*
+        if *DEBUG.lock().unwrap() {
+            println!("row:{} {} ", row_num, row_left);
+        }
+         */
         _idx = row_num * w;
         row_num += 1;
-        // println!("read {}", p);
-        let empty = c.read_u8()?;
-        // println!("skip {}", empty);
-        _idx += empty as usize;
-        let next = c.read_u8()?;
-        // println!("read {}", next);
-        for _ in 0..next {
-            let c = c.read_u8()?;
-            if let Some(v) = buf.get_mut(_idx as usize) {
-                let c = *colors.get(c as usize).unwrap();
-                *v = c;
-                _idx += 1;
+
+        while row_left > 0 {
+            let empty = c.read_u8()?;
+            /*
+            if *DEBUG.lock().unwrap() {
+                println!("skip {}", empty);
+            }
+             */
+            _idx += empty as usize;
+            row_left -= 2;
+
+            if row_left > 0 {
+                let next = c.read_u8()?;
+                /*
+                if *DEBUG.lock().unwrap() {
+                    println!("read {}", next);
+                }
+                 */
+                row_left -= next;
+                for _ in 0..next {
+                    let c = c.read_u8()?;
+                    /*
+                    if *DEBUG.lock().unwrap() {
+                        println!("read solid {}", c);
+                    }
+                     */
+                    if let Some(v) = buf.get_mut(_idx as usize) {
+                        let c = *colors.get(c as usize).unwrap();
+                        *v = c;
+                        _idx += 1;
+                    }
+                }
             }
         }
     }
     Ok(())
 }
 
+// width, heigh, xoff, yoff
+#[derive(Copy, Clone, Debug)]
+pub struct TextureMeta(
+    pub u16, // width
+    pub u16, // height
+    pub f32, // xoff
+    pub f32, // yoff
+);
+
 impl TextureMap {
     pub fn new(gs: GrpAsset) -> TextureMap {
-        TextureMap {
-            gs,
-        }
+        TextureMap { gs }
     }
 
-    pub fn get_image(&self, id: usize, colors: &Vec<u32>) -> Option<(Image, f32, f32)> {
+    pub fn get_image(&self, id: usize, colors: &Vec<u32>) -> Option<(Image, TextureMeta)> {
         let maybe_data = self.gs.idx(id as usize);
         if maybe_data.is_none() {
             return None;
@@ -511,32 +561,23 @@ impl TextureMap {
         let h = read!(c, u16);
         let xoff = read!(c, i16);
         let yoff = read!(c, i16);
-        /*
-        println!("data len {} w:{}, h:{}, xoff:{}, yoff:{}",
-                 data.len(),
-                 w, h, xoff, yoff
-        );
-
-         */
+        if *DEBUG.lock().unwrap() {
+            println!(
+                "data len {} w:{}, h:{}, xoff:{}, yoff:{}",
+                data.len(),
+                w,
+                h,
+                xoff,
+                yoff
+            );
+        }
 
         let mut decode_buf: Vec<u32> = vec![];
-        // decode_buf.resize((w * h) as usize, 0xFF206070);
-        //decode_buf.resize((w * h) as usize, rbg2rgba(0x706020));
         decode_buf.resize((w * h) as usize, 0x0);
 
         parse(&mut decode_buf, w as usize, &mut c, colors).unwrap();
         let pixel_ptr = decode_buf.as_ptr() as *const u8;
         let pixel = unsafe { slice::from_raw_parts(pixel_ptr, decode_buf.len() * 4) };
-        // decode_buf.as_ptr() as *const u8 as &[u8],
-
-        /*
-        if id == 2 {
-            decode_buf.as_slice().chunks(w as usize).for_each(|v| {
-                println!("{}", v.iter().map(|v| format!("{:0x}", v)).join(" "));
-            });
-        }
-
-         */
 
         let image = Image::new_fill(
             Extent3d {
@@ -549,17 +590,30 @@ impl TextureMap {
             TextureFormat::Rgba8UnormSrgb,
         );
 
-        Some((image, xoff as f32, yoff as f32))
+        Some((image, TextureMeta(w, h, xoff as f32, yoff as f32)))
     }
 }
 
-pub fn load_color(data: &[u8]) -> Vec<u32> {
-    data.chunks(3).map(|v| {
-        let mut c = Cursor::new(v);
-        let c1 = read!(c, u8) as u32;
-        let c2 = read!(c, u8) as u32;
-        let c3 = read!(c, u8) as u32;
-        let rgb = (c1 << 18) + (c2 << 10) + (c3 << 2);
-        rbg2rgba(rgb)
-    }).collect()
+#[derive(Clone)]
+pub struct Palette(pub Vec<u32>);
+
+pub fn load_color(data: &[u8]) -> Palette {
+    Palette(
+        data.chunks(3)
+            .map(|v| {
+                let mut c = Cursor::new(v);
+                let c1 = read!(c, u8) as u32;
+                let c2 = read!(c, u8) as u32;
+                let c3 = read!(c, u8) as u32;
+                let rgb = (c1 << 18) + (c2 << 10) + (c3 << 2);
+                rbg2rgba(rgb)
+            })
+            .collect(),
+    )
 }
+
+pub struct Thing([u8; 260]);
+
+pub struct Wugong([u8; 146]);
+
+pub struct Shop([u8; 30]);

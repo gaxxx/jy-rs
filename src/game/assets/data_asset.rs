@@ -25,7 +25,6 @@ impl AssetLoader for DataAssetLoader {
         Box::pin(async move { Ok(load_data(bytes, load_context).await?) })
     }
 
-
     fn extensions(&self) -> &[&str] {
         &["col"]
     }
@@ -35,10 +34,7 @@ async fn load_data<'a, 'b>(
     bytes: &'a [u8],
     load_context: &'a mut LoadContext<'b>,
 ) -> Result<(), anyhow::Error> {
-    println!("on loading data asset");
-    load_context.set_default_asset(LoadedAsset::new(DataAsset {
-        data: bytes.into(),
-    }));
+    load_context.set_default_asset(LoadedAsset::new(DataAsset { data: bytes.into() }));
 
     Ok(())
 }

@@ -4,23 +4,21 @@ use bevy::prelude::*;
 use jy::prelude::*;
 
 fn main() {
+    #[cfg(target_arch = "wasm32")]
+    console_error_panic_hook::set_once();
     let mut main_app = App::new();
-    let settings = Settings::new();
     main_app
         .insert_resource(WindowDescriptor {
             title: "JY!".to_string(),
             width: 1024.,
             height: 768.,
-            vsync: true,
             ..Default::default()
         })
-        .insert_resource(ClearColor(Color::rgb(0., 0., 0.)))
-        .insert_resource(settings)
-        .add_plugins(DefaultPlugins)
         .add_plugin(AdminPlugin)
+        .insert_resource(ClearColor(Color::rgb(0., 0., 0.)))
+        .add_plugins(DefaultPlugins)
         .add_plugin(GamePlugin)
-        .run()
-    ;
+        .run();
 
     main_app.run();
 }

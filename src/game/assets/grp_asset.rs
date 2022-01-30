@@ -1,9 +1,8 @@
-use std::sync::Arc;
-
 use anyhow::Result;
 use byteorder::{LittleEndian, ReadBytesExt};
 
 use bevy::asset::{AssetIoError, AssetLoader, LoadContext, LoadedAsset};
+use bevy::log::debug;
 use bevy::reflect::TypeUuid;
 use bevy::utils::BoxedFuture;
 
@@ -11,9 +10,8 @@ use bevy::utils::BoxedFuture;
 #[derive(Debug, Clone, TypeUuid)]
 #[uuid = "7a14806a-672b-443b-8d16-4f18afefa464"]
 pub struct GrpAsset {
-    /// Raw data of the audio source
     pub idx: Vec<usize>,
-    pub data: Arc<[u8]>,
+    pub data: Vec<u8>,
 }
 
 impl GrpAsset {
@@ -23,7 +21,7 @@ impl GrpAsset {
         if next - cur <= 0 {
             None
         } else {
-            Some(&self.data.as_ref()[cur..next])
+            Some(&self.data[cur..next])
         }
     }
 }
@@ -40,7 +38,6 @@ impl AssetLoader for GrpLoader {
         Box::pin(async move { Ok(load_grp(bytes, load_context).await?) })
     }
 
-
     fn extensions(&self) -> &[&str] {
         &["grp"]
     }
@@ -52,11 +49,10 @@ async fn load_grp<'a, 'b>(
     load_context: &'a mut LoadContext<'b>,
 ) -> Result<(), anyhow::Error> {
     let path = load_context.path().to_str().unwrap().to_string();
-    println!("try load path {}: {}", path, bytes.len());
+    debug!("try load path {}: {}", path, bytes.len());
     let pos = path.rfind(".").unwrap();
     let idx_file = path.split_at(pos).0.to_string() + ".idx";
-    println!("try load idx {}", idx_file);
-
+    debug!("try load idx {}", idx_file);
 
     let mut idx = vec![0];
     let out = load_context.read_asset_bytes(idx_file).await;
