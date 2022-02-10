@@ -104,7 +104,7 @@ pub fn setup_splash(
     mut state: ResMut<State<SplashState>>,
 ) {
     info!("setup splash");
-    let texture_handle = asset_server.load("pic/title.png");
+    let texture_handle = asset_server.load("org/pic/title.png");
     commands
         .spawn_bundle(OrthographicCameraBundle::new_2d())
         .insert(SplashScreen);

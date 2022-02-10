@@ -115,16 +115,16 @@ pub fn load(
 pub fn loading(mut commands: Commands, res: Res<AssetServer>) {
     debug!("start to load data");
     let handles = vec![
-        res.load("data/ranger.grp"),
-        res.load("data/allsin.grp"),
-        res.load("data/alldef.grp"),
+        res.load("org/data/ranger.grp"),
+        res.load("org/data/allsin.grp"),
+        res.load("org/data/alldef.grp"),
         // smap
-        res.load("data/smap.grp"),
-        res.load("data/hdgrp.grp"),
-        res.load("data/thing.grp"),
+        res.load("org/data/smap.grp"),
+        res.load("org/data/hdgrp.grp"),
+        res.load("org/data/thing.grp"),
     ];
 
-    let data_h = vec![res.load("data/mmap.col")];
+    let data_h = vec![res.load("org/data/mmap.col")];
 
     commands.insert_resource(GameLoad {
         grp_handles: handles,

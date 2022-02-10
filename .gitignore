@@ -1,6 +1,5 @@
 **/*.rs.bk
 /target
 .idea/*
-.cargo/
-assets/*
+.cargo/config.toml
 Cargo.lock
