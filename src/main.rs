@@ -1,5 +1,3 @@
-#![feature(default_free_fn)]
-
 use bevy::prelude::*;
 use jy::prelude::*;
 
