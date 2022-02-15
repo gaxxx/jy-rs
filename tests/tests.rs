@@ -6,7 +6,7 @@ use byteorder::{LittleEndian, ReadBytesExt};
 
 use bevy::log::Level;
 use bevy::prelude::{FromWorld, World};
-use jy::game::structs::{Person, SceneInfo};
+use jy::game::structs::Person;
 use jy::game::{structs, GrpAsset};
 use jy::prelude::Settings;
 
@@ -19,18 +19,6 @@ fn test_settings() {
 
 #[test]
 fn test_asset() {
-    let mut data = vec![];
-    File::open("./assets/data/allsin.grp")
-        .unwrap()
-        .read_to_end(&mut data)
-        .unwrap();
-
-    let si = SceneInfo { sdata: data.into() };
-    let d0 = si.get_texture(70, 0, 0, 0);
-    assert_eq!(d0, 4);
-    let d1 = si.get_texture(70, 4, 1, 0);
-    assert_eq!(d1, 140);
-
     let mut data = vec![];
     let mut idx_data = vec![];
     File::open("./assets/data/smap.grp")
@@ -47,13 +35,10 @@ fn test_asset() {
     while let Ok(ret) = cursor.read_u32::<LittleEndian>() {
         idx.push(ret as usize);
     }
-    let gs = GrpAsset {
+    let _gs = GrpAsset {
         idx,
         data: data.as_slice().into(),
     };
-    assert_eq!(420, gs.idx(d0 as usize).unwrap().len());
-    assert_eq!(420, gs.idx(d1 / 2).unwrap().len());
-    // let ga = as_server.get(data);
 }
 
 #[test]
@@ -69,5 +54,5 @@ fn load_colors() {
         .read_to_end(&mut data)
         .unwrap();
     let out = structs::load_color(&data);
-    assert_eq!(*out.get(1).unwrap(), 0xf8f0cc as u32);
+    assert_eq!(*out.0.get(1).unwrap(), 0xf8f0cc as u32);
 }

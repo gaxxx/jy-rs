@@ -223,6 +223,8 @@ pub fn on_event(
 pub fn movement(
     time: Res<Time>,
     mut pos: ResMut<Pos>,
+    sta : Res<Status>,
+    s_data : Res<SData>,
     keyboard_input: ResMut<Input<KeyCode>>,
     mut query: Query<&mut Transform, (With<NetCell>, Without<Me>)>,
     mut me_query: Query<(&mut SpriteMeta, &mut TextureAtlasSprite), With<Me>>,
@@ -271,12 +273,12 @@ pub fn movement(
             }
             let next_x = pos.pos.x + pos_update.get(code).unwrap().0 as f32;
             let next_y = pos.pos.y + pos_update.get(code).unwrap().1 as f32;
+            println!("next_x {}, next_y :{}", next_x, next_y);
 
-            /*
-            if s_data.get_texture(sta.cur_s as usize, next_x as usize, next_y as usize, 1) > 0 {
+            if s_data.get_texture(sta.cur_s as usize, next_y as usize, next_x as usize, 1) > 0 {
+                println!("get block here");
                 return ControlFlow::Break(());
             }
-             */
 
             pos.pos.x = next_x;
             pos.pos.y = next_y;

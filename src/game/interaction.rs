@@ -160,7 +160,8 @@ fn handle_sprite(
         let meta = metas[0];
 
         transform.translation.x -= meta.2 - meta.0 as f32 / 2.;
-        transform.translation.y += 10. + meta.3 - meta.1 as f32 / 2.;
+        // add y scale to make the offset right, I don't know fucking why
+        transform.translation.y += YSCALE + meta.3 - meta.1 as f32 / 2.;
         transform.translation.z = 4.;
         commands
             .spawn_bundle(SpriteSheetBundle {
