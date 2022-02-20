@@ -67,6 +67,7 @@ pub fn load(
                     commands.insert_resource(gd.shops);
                     commands.insert_resource(gd.things);
                     commands.insert_resource(gd.wukongs);
+                    commands.insert_resource(Backpack::default())
                 }
                 1 => {
                     debug!(
@@ -151,7 +152,12 @@ impl GameData {
                 .chunks(size_of::<Person>())
                 .map(|v| Person::new(v))
                 .collect(),
-            things: vec![],
+            things: asset
+                .idx(2)
+                .unwrap()
+                .chunks(size_of::<Thing>())
+                .map(|v| Thing::new(v))
+                .collect(),
             scenes: asset
                 .idx(3)
                 .unwrap()

@@ -57,7 +57,7 @@ pub fn setup(
             let x = w as f32;
             let y = h as f32;
             // pic id is a half
-            let earth = s_data.get_texture(structs::ENTRY_SCENE, h, w, 0) / 2;
+            let earth = s_data.get_texture(structs::ENTRY_SCENE, w, h, 0) / 2;
             if earth > 0 {
                 let mut transform =
                     Transform::from_xyz((x - y) * XSCALE + x_off, (-x - y) * YSCALE + y_off, 1.0);
@@ -87,7 +87,7 @@ pub fn setup(
             let y = h as f32;
             // pic id is a half
             let d = (1..=5)
-                .map(|v| s_data.get_texture(structs::ENTRY_SCENE, h, w, v))
+                .map(|v| s_data.get_texture(structs::ENTRY_SCENE, w, h, v))
                 .collect::<Vec<_>>();
 
             if d[0] > 0 {
@@ -139,7 +139,7 @@ pub fn setup(
                     let (image_h, meta, _) = image_cache.get_image(pic as usize / 2);
                     transform.translation.x -= meta.2 - meta.0 as f32 / 2.;
                     transform.translation.y += meta.3 - meta.1 as f32 / 2. + d[3] as f32;
-                    commands
+                    let mut entity = commands
                         .spawn_bundle(MaterialMesh2dBundle {
                             mesh: meshes.add(Mesh::from(shape::Quad::default())).into(),
                             transform: transform.with_scale(Vec3::new(
@@ -150,7 +150,11 @@ pub fn setup(
                             material: materials.add(ColorMaterial::from(image_h)),
                             ..Default::default()
                         })
-                        .insert(NetCell);
+                        .insert(NetCell)
+                        .id();
+                    commands
+                        .entity(entity)
+                        .insert(JyBox(entity, x as usize, y as usize));
                 }
             }
         }
@@ -169,7 +173,7 @@ pub fn setup(
         transform.translation.x, transform.translation.y
     );
 
-    let height = s_data.get_texture(structs::ENTRY_SCENE, y as usize, x as usize, 4);
+    let height = s_data.get_texture(structs::ENTRY_SCENE, x as usize, y as usize, 4);
     println!("height is {}", height);
 
     transform.translation.x -= meta.2 - meta.0 as f32 / 2.;
@@ -189,9 +193,16 @@ pub struct Me;
 #[derive(Component)]
 pub struct NetCell;
 
+#[derive(Component)]
+pub struct JyBox(pub Entity, pub usize, pub usize);
+
 pub fn on_event(
     mut commands: Commands,
     mut events: ResMut<Events<JyEvent>>,
+    keyboard_input: ResMut<Input<KeyCode>>,
+    mut pos: ResMut<Pos>,
+    d_data: Res<DData>,
+    s_data: Res<SData>,
     mut sta: ResMut<Status>,
     mut state: ResMut<State<GameState>>,
 ) {
@@ -200,31 +211,35 @@ pub fn on_event(
         sta.is_new_game = false;
         return;
     }
-    /*
-    let ev = game.s_data.as_ref().unwrap().get_texture(
-        game.cur_s as usize,
-        game.cur_s_x as usize,
-        game.cur_s_y as usize,
-        3,
-    );
-    debug!(
-        "handle event for {}:{} with {}",
-        game.cur_s_y, game.cur_s_x, ev
-    );
-    if ev > 0 {
-        if ev != game.cur_ev {
-            game.cur_ev = ev;
-            event::execute(&mut commands, &*game, ev, 3, &mut state);
+
+    if keyboard_input.just_pressed(KeyCode::Space) {
+        let mut pos_update = HashMap::default();
+        pos_update.insert(KeyCode::Up, (0, -1));
+        pos_update.insert(KeyCode::Down, (0, 1));
+        pos_update.insert(KeyCode::Left, (-1, 0));
+        pos_update.insert(KeyCode::Right, (1, 0));
+
+        if pos_update.contains_key(&pos.facing) {
+            let next_x = pos.pos.x as i32 + pos_update.get(&pos.facing).unwrap().0;
+            let next_y = pos.pos.y as i32 + pos_update.get(&pos.facing).unwrap().1;
+            let d = s_data.get_texture(sta.cur_s as usize, next_x as usize, next_y as usize, 3);
+            if d > 0 {
+                sta.cur_d = (d as usize, next_x as usize, next_y as usize);
+                let ev = d_data.get_d(sta.cur_s as usize, d as usize, 2);
+                if ev > 0 {
+                    interaction::execute_n(&mut commands, &mut state, &mut events, ev as i16);
+                }
+            }
         }
     }
-     */
 }
 
 pub fn movement(
     time: Res<Time>,
     mut pos: ResMut<Pos>,
-    sta : Res<Status>,
-    s_data : Res<SData>,
+    sta: Res<Status>,
+    s_data: Res<SData>,
+    d_data: Res<DData>,
     keyboard_input: ResMut<Input<KeyCode>>,
     mut query: Query<&mut Transform, (With<NetCell>, Without<Me>)>,
     mut me_query: Query<(&mut SpriteMeta, &mut TextureAtlasSprite), With<Me>>,
@@ -273,11 +288,16 @@ pub fn movement(
             }
             let next_x = pos.pos.x + pos_update.get(code).unwrap().0 as f32;
             let next_y = pos.pos.y + pos_update.get(code).unwrap().1 as f32;
-            println!("next_x {}, next_y :{}", next_x, next_y);
 
-            if s_data.get_texture(sta.cur_s as usize, next_y as usize, next_x as usize, 1) > 0 {
-                println!("get block here");
+            if s_data.get_texture(sta.cur_s as usize, next_x as usize, next_y as usize, 1) > 0 {
                 return ControlFlow::Break(());
+            }
+
+            let d = s_data.get_texture(sta.cur_s as usize, next_x as usize, next_y as usize, 3);
+            if d > 0 {
+                if d_data.get_d(sta.cur_s as usize, d as usize, 0) > 0 {
+                    return ControlFlow::Break(());
+                }
             }
 
             pos.pos.x = next_x;

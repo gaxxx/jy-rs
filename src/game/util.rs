@@ -13,6 +13,7 @@ pub struct Status {
     pub cur_s: i32,
     pub cur_s_x: i16,
     pub cur_s_y: i16,
+    pub cur_d: (usize, usize, usize),
     pub cur_pic: usize,
     pub is_new_game: bool,
 }

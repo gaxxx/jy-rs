@@ -80,8 +80,8 @@ fn update_hint_box(
     if let (Some(sdata), Some(sta), Some(mut image_cache)) = (mb_sdata, mb_sta, mb_image_cache) {
         let pic = sdata.get_texture(
             sta.cur_s as usize,
-            pos.pos.y as usize,
             pos.pos.x as usize,
+            pos.pos.y as usize,
             1,
         );
         mb_is_block = Some(pic);

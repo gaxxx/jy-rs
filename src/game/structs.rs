@@ -4,7 +4,7 @@ use std::io::{Cursor, Read};
 use std::sync::Mutex;
 use std::{mem, slice};
 
-use byteorder::{LittleEndian, ReadBytesExt};
+use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use lazy_static::lazy_static;
 
 use bevy::prelude::Image;
@@ -104,6 +104,11 @@ pub struct Base {
     end
      */
     pub items: [(i16, i16); MY_THING_NUM],
+}
+
+#[derive(Debug, Default)]
+pub struct Backpack {
+    pub items: Vec<(i32, i32)>,
 }
 
 #[derive(Debug)]
@@ -457,7 +462,7 @@ impl SData {
         SData(gs.data)
     }
 
-    pub fn get_texture(&self, scene_id: usize, h: usize, w: usize, layer: usize) -> i16 {
+    pub fn get_texture(&self, scene_id: usize, w: usize, h: usize, layer: usize) -> i16 {
         let i = (scene_id * LAYER_NUM + layer) * SCENE_WIDTH * SCENE_HEIGHT + h * SCENE_WIDTH + w;
         let mut data = &self.0[i * 2..];
         data.read_i16::<LittleEndian>().unwrap()
@@ -475,6 +480,15 @@ impl DData {
         let i = (scene_id * DNUM + id) * 11 + i;
         let mut data = &self.0[i * 2..];
         data.read_i16::<LittleEndian>().unwrap()
+    }
+
+    pub fn set(&mut self, scene_id: usize, id: usize, i: usize, val: i16) {
+        let i = (scene_id * DNUM + id) * 11 + i;
+        let data = &mut self.0[i * 2..i * 2 + 2];
+        let mut test = vec![];
+        test.write_i16::<LittleEndian>(val).unwrap();
+        data[0] = test[0];
+        data[1] = test[1];
     }
 }
 
@@ -612,7 +626,255 @@ pub fn load_color(data: &[u8]) -> Palette {
     )
 }
 
-pub struct Thing([u8; 260]);
+#[repr(C)]
+#[derive(Debug)]
+pub struct Thing {
+    // CC.Thing_S["代号"]={0,0,2}
+    code: i16,
+    // CC.Thing_S["名称"]={2,2,40}
+    name: [u8; 40],
+    // CC.Thing_S["名称2"]={42,2,40}
+    name2: [u8; 40],
+    // CC.i16_S["物品说明"]={82,2,60}
+    desp: [u8; 60],
+    // CC.Thing_S["练出武功"]={142,0,2}
+    wugong: i16,
+    // CC.Thing_S["暗器动画编号"]={144,0,2}
+    animate_code: i16,
+    // CC.Thing_S["使用人"]={146,0,2}
+    user: i16,
+    // CC.Thing_S["装备类型"]={148,0,2}
+    equip_type: i16,
+    // CC.Thing_S["显示物品说明"]={150,0,2}
+    show: i16,
+    // CC.Thing_S["类型"]={152,0,2}
+    typ: i16,
+    // CC.Thing_S["未知5"]={154,0,2}
+    unknown5: i16,
+    // CC.Thing_S["未知6"]={156,0,2}
+    unknown6: i16,
+    // CC.Thing_S["未知7"]={158,0,2}
+    unknown7: i16,
+    // CC.Thing_S["加生命"]={160,0,2}
+    add_life: i16,
+    // CC.Thing_S["加生命最大值"]={162,0,2}
+    add_max_life: i16,
+    // CC.Thing_S["加中毒解毒"]={164,0,2}
+    add_detox: i16,
+    // CC.Thing_S["加体力"]={166,0,2}
+    add_vat: i16,
+    // CC.Thing_S["改变内力性质"]={168,0,2}
+    change_mag: i16,
+    // CC.Thing_S["加内力"]={170,0,2}
+    add_mag: i16,
+    // CC.Thing_S["加内力最大值"]={172,0,2}
+    add_max_mag: i16,
+    // CC.Thing_S["加攻击力"]={174,0,2}
+    add_attack: i16,
+    // CC.Thing_S["加轻功"]={176,0,2}
+    add_agile: i16,
+    // CC.Thing_S["加防御力"]={178,0,2}
+    add_def: i16,
+    // CC.Thing_S["加医疗能力"]={180,0,2}
+    add_heal: i16,
+    // CC.Thing_S["加用毒能力"]={182,0,2}
+    add_poison: i16,
+    // CC.Thing_S["加解毒能力"]={184,0,2}
+    add_depoison: i16,
+    // CC.Thing_S["加抗毒能力"]={186,0,2}
+    add_anti_poi: i16,
+    // CC.Thing_S["加拳掌功夫"]={188,0,2}
+    add_fist: i16,
+    // CC.Thing_S["加御剑能力"]={190,0,2}
+    add_sword: i16,
+    // CC.Thing_S["加耍刀技巧"]={192,0,2}
+    add_knife: i16,
+    // CC.Thing_S["加特殊兵器"]={194,0,2}
+    add_special_weapon: i16,
+    // CC.Thing_S["加暗器技巧"]={196,0,2}
+    add_arrow: i16,
+    // CC.Thing_S["加武学常识"]={198,0,2}
+    add_know: i16,
+    // CC.Thing_S["加品德"]={200,0,2}
+    add_rep: i16,
+    // CC.Thing_S["加攻击次数"]={202,0,2}
+    add_attack_time: i16,
+    // CC.Thing_S["加攻击带毒"]={204,0,2}
+    add_attack_poi: i16,
+    // CC.Thing_S["仅修炼人物"]={206,0,2}
+    use_only: i16,
+    // CC.Thing_S["需内力性质"]={208,0,2}
+    magic_type: i16,
+    // CC.Thing_S["需内力"]={210,0,2}
+    magic_req: i16,
+    // CC.Thing_S["需攻击力"]={212,0,2}
+    att_req: i16,
+    // CC.Thing_S["需轻功"]={214,0,2}
+    agile_req: i16,
+    // CC.Thing_S["需用毒能力"]={216,0,2}
+    poi_req: i16,
+    // CC.Thing_S["需医疗能力"]={218,0,2}
+    heal_req: i16,
+    // CC.Thing_S["需解毒能力"]={220,0,2}
+    depoi_req: i16,
+    // CC.Thing_S["需拳掌功夫"]={222,0,2}
+    fist_req: i16,
+    // CC.i16_S["需御剑能力"]={224,0,2}
+    sword_req: i16,
+    // CC.Thing_S["需耍刀技巧"]={226,0,2}
+    knife_req: i16,
+    // CC.Thing_S["需特殊兵器"]={228,0,2}
+    sp_weapon_req: i16,
+    // CC.Thing_S["需暗器技巧"]={230,0,2}
+    arrow_req: i16,
+    // CC.Thing_S["需资质"]={232,0,2}
+    ability_req: i16,
+    // CC.Thing_S["需经验"]={234,0,2}
+    exp_req: i16,
+    // CC.Thing_S["练出物品需经验"]={236,0,2}
+    item_exp: i16,
+    // CC.Thing_S["需材料"]={238,0,2}
+    meterial_req: i16,
+    items: [i16; 5],
+    item_reqs: [i16; 5],
+}
+
+impl Thing {
+    pub fn new(data: &[u8]) -> Self {
+        let mut c = std::io::Cursor::new(data);
+        let code = read!(c, i16);
+        let mut name = [0; 40];
+        c.read(&mut name).unwrap();
+        let mut name2 = [0; 40];
+        c.read(&mut name2).unwrap();
+        let mut desp = [0; 60];
+        c.read(&mut desp).unwrap();
+        let wugong = read!(c, i16);
+        let animate_code = read!(c, i16);
+        let user = read!(c, i16);
+        let equip_type = read!(c, i16);
+        let show = read!(c, i16);
+        let typ = read!(c, i16);
+        let unknown5 = read!(c, i16);
+        let unknown6 = read!(c, i16);
+        let unknown7 = read!(c, i16);
+        let add_life = read!(c, i16);
+        let add_max_life = read!(c, i16);
+        let add_detox = read!(c, i16);
+        let add_vat = read!(c, i16);
+        let change_mag = read!(c, i16);
+        let add_mag = read!(c, i16);
+        let add_max_mag = read!(c, i16);
+        let add_attack = read!(c, i16);
+        let add_agile = read!(c, i16);
+        let add_def = read!(c, i16);
+        let add_heal = read!(c, i16);
+        let add_poison = read!(c, i16);
+        let add_depoison = read!(c, i16);
+        let add_anti_poi = read!(c, i16);
+        let add_fist = read!(c, i16);
+        let add_sword = read!(c, i16);
+        let add_knife = read!(c, i16);
+        let add_special_weapon = read!(c, i16);
+        let add_arrow = read!(c, i16);
+        let add_know = read!(c, i16);
+        let add_rep = read!(c, i16);
+        let add_attack_time = read!(c, i16);
+        let add_attack_poi = read!(c, i16);
+        let use_only = read!(c, i16);
+        let magic_type = read!(c, i16);
+        let magic_req = read!(c, i16);
+        let att_req = read!(c, i16);
+        let agile_req = read!(c, i16);
+        let poi_req = read!(c, i16);
+        let heal_req = read!(c, i16);
+        let depoi_req = read!(c, i16);
+        let fist_req = read!(c, i16);
+        let sword_req = read!(c, i16);
+        let knife_req = read!(c, i16);
+        let sp_weapon_req = read!(c, i16);
+        let arrow_req = read!(c, i16);
+        let ability_req = read!(c, i16);
+        let exp_req = read!(c, i16);
+        let item_exp = read!(c, i16);
+        let meterial_req = read!(c, i16);
+        let mut items = [0i16; 5];
+        let mut item_reqs = [0i16; 5];
+        for i in 0..items.len() {
+            items[i] = read!(c, i16);
+            item_reqs[i] = read!(c, i16);
+        }
+        Thing {
+            code,
+            name,
+            name2,
+            desp,
+            wugong,
+            animate_code,
+            user,
+            equip_type,
+            show,
+            typ,
+            unknown5,
+            unknown6,
+            unknown7,
+            add_life,
+            add_max_life,
+            add_detox,
+            add_vat,
+            change_mag,
+            add_mag,
+            add_max_mag,
+            add_attack,
+            add_agile,
+            add_def,
+            add_heal,
+            add_poison,
+            add_depoison,
+            add_anti_poi,
+            add_fist,
+            add_sword,
+            add_knife,
+            add_special_weapon,
+            add_arrow,
+            add_know,
+            add_rep,
+            add_attack_time,
+            add_attack_poi,
+            use_only,
+            magic_type,
+            magic_req,
+            att_req,
+            agile_req,
+            poi_req,
+            heal_req,
+            depoi_req,
+            fist_req,
+            sword_req,
+            knife_req,
+            sp_weapon_req,
+            arrow_req,
+            ability_req,
+            exp_req,
+            item_exp,
+            meterial_req,
+            items,
+            item_reqs,
+        }
+    }
+
+    pub fn name(&self) -> String {
+        to_str(&self.name)
+    }
+
+    pub fn name2(&self) -> String {
+        to_str(&self.name2)
+    }
+
+    pub fn desp(&self) -> String {
+        to_str(&self.desp)
+    }
+}
 
 pub struct Wugong([u8; 146]);
 

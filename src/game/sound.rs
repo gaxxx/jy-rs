@@ -10,7 +10,7 @@ impl bevy::prelude::Plugin for Plugin {
 }
 
 fn play_audio(_commands: Commands, res: Res<AssetServer>, mut ew: EventWriter<PlayEvent>) {
-    let cur = "sounds/game01.mp3";
+    let cur = "music/game01.mp3";
     let sound = res.load::<AudioSource, &'static str>(cur);
     ew.send(PlayEvent::Loop(true));
     ew.send(PlayEvent::Append(sound));
