@@ -4,10 +4,9 @@ use bevy::asset::LoadState;
 use bevy::prelude::*;
 
 use crate::game::assets::*;
-use crate::game::interaction::JyEvent;
+use crate::game::script::JyEvent;
 use crate::game::structs::*;
-use crate::game::util::ImageCache;
-use crate::game::util::Status;
+use crate::game::util::{ImageCache, RenderHelper};
 use crate::game::{structs, GameState};
 
 pub struct Plugin;
@@ -100,16 +99,17 @@ pub fn load(
 
     commands.init_resource::<ImageCache>();
 
-    let mut sta = Status::default();
-    sta.cur_s = structs::ENTRY_SCENE as i32;
-    sta.cur_s_x = structs::ENTRY_X;
-    sta.cur_s_y = structs::ENTRY_Y;
+    let mut sta = SceneStatus::default();
+    sta.cur_s = structs::ENTRY_SCENE;
+    sta.pos.x = structs::ENTRY_X as f32;
+    sta.pos.y = structs::ENTRY_Y as f32;
     sta.cur_pic = NEW_PERSON;
     sta.is_new_game = true;
     if sta.is_new_game {
         state.set(GameState::Smap).unwrap();
     }
     commands.insert_resource(sta);
+    commands.init_resource::<RenderHelper>();
     commands.remove_resource::<GameLoad>();
 }
 

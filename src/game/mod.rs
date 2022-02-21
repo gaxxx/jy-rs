@@ -7,8 +7,8 @@ use bevy::prelude::*;
 
 mod assets;
 mod hint;
-pub mod interaction;
 mod load;
+pub mod script;
 mod smap;
 mod sound;
 mod splash;
@@ -45,7 +45,7 @@ impl bevy::prelude::Plugin for Plugin {
         app.add_state(GameState::Splash)
             .add_plugin(splash::Plugin)
             .add_plugin(load::Plugin)
-            .add_plugin(interaction::Plugin)
+            .add_plugin(script::Plugin)
             .add_plugin(hint::Plugin)
             .add_plugin(smap::Plugin);
 

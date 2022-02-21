@@ -4,9 +4,9 @@ use bevy::app::Events;
 use bevy::prelude::*;
 use bevy::sprite::MaterialMesh2dBundle;
 
-use crate::game::smap::{JyBox, Me, NetCell, Pos};
-use crate::game::structs::{Backpack, DData, SData, TextureMeta, Thing, XSCALE, YSCALE};
-use crate::game::util::{ImageCache, Status};
+use crate::game::smap::{JyBox, Me, NetCell};
+use crate::game::structs::*;
+use crate::game::util::ImageCache;
 use crate::game::GameState;
 
 #[derive(Component)]
@@ -141,7 +141,7 @@ fn handle_instruct(
     things: Res<Vec<Thing>>,
     mut backpack: ResMut<Backpack>,
     mut mb_ev_script: Option<ResMut<EventScript>>,
-    sta: Res<Status>,
+    sta: Res<SceneStatus>,
 ) {
     if mb_ev_script.is_none() {
         return;
@@ -160,12 +160,11 @@ fn handle_d_data(
     mut commands: Commands,
     mut d_data: ResMut<DData>,
     mut mb_ev_script: Option<ResMut<EventScript>>,
-    sta: ResMut<Status>,
+    sta: ResMut<SceneStatus>,
     mut meshes: ResMut<Assets<Mesh>>,
     s_data: Res<SData>,
     mut materials: ResMut<Assets<ColorMaterial>>,
     mut image_cache: ResMut<ImageCache>,
-    pos: Res<Pos>,
     query: Query<(&Transform, &JyBox), With<JyBox>>,
 ) {
     if mb_ev_script.is_none() {
@@ -173,7 +172,11 @@ fn handle_d_data(
     }
     let ev_script = mb_ev_script.as_mut().unwrap();
     if let Some(JyEvent::Data(sc, d, vals)) = ev_script.dispatch.as_ref() {
-        let s = if *sc == -2i16 { sta.cur_s } else { *sc as i32 };
+        let s = if *sc == -2i16 {
+            sta.cur_s
+        } else {
+            *sc as usize
+        };
         let dv = if *d == -2i16 {
             sta.cur_d.0
         } else {
@@ -195,8 +198,8 @@ fn handle_d_data(
                     let y = bx.2 as f32;
                     commands.entity(bx.0).despawn_recursive();
 
-                    let x_off = -(pos.pos.x - pos.pos.y) as f32 * XSCALE;
-                    let y_off = -(-pos.pos.y - pos.pos.x) as f32 * YSCALE;
+                    let x_off = -(sta.pos.x - sta.pos.y) * XSCALE;
+                    let y_off = -(-sta.pos.y - sta.pos.x) * YSCALE;
                     let pic = image_update.unwrap();
                     let mut transform = Transform::from_xyz(
                         (x - y) * XSCALE + x_off,
@@ -237,7 +240,7 @@ fn handle_sprite(
     mb_ev_script: Option<ResMut<EventScript>>,
     query: Query<Entity, With<Me>>,
     asset_server: Res<AssetServer>,
-    mut sta: ResMut<Status>,
+    mut sta: ResMut<SceneStatus>,
     mut image_cache: ResMut<ImageCache>,
     mut images: ResMut<Assets<Image>>,
     mut textures: ResMut<Assets<TextureAtlas>>,
@@ -251,10 +254,10 @@ fn handle_sprite(
         for entity in query.iter() {
             commands.entity(entity).despawn_recursive();
         }
-        let x = sta.cur_s_x as f32;
-        let y = sta.cur_s_y as f32;
-        let x_off = -(sta.cur_s_x - sta.cur_s_y) as f32 * XSCALE;
-        let y_off = -(-sta.cur_s_y - sta.cur_s_x) as f32 * YSCALE;
+        let x = sta.pos.x;
+        let y = sta.pos.y;
+        let x_off = (y - x) * XSCALE;
+        let y_off = (y + x) * YSCALE;
         sta.cur_pic = 2501;
         let mut texture_builder =
             TextureAtlasBuilder::default().initial_size(Vec2::new(XSCALE * 2., YSCALE * 2.));

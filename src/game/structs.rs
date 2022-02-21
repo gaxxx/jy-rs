@@ -7,7 +7,7 @@ use std::{mem, slice};
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use lazy_static::lazy_static;
 
-use bevy::prelude::Image;
+use bevy::prelude::{Image, KeyCode, Vec2};
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 
 use crate::game::GrpAsset;
@@ -18,8 +18,8 @@ lazy_static! {
 }
 
 pub const ENTRY_SCENE: usize = 70;
-pub const ENTRY_X: i16 = 19;
-pub const ENTRY_Y: i16 = 20;
+pub const ENTRY_X: usize = 19;
+pub const ENTRY_Y: usize = 20;
 
 // CC.SceneXMin=11
 pub const SCENE_X_MIN: i16 = 11;
@@ -879,3 +879,52 @@ impl Thing {
 pub struct Wugong([u8; 146]);
 
 pub struct Shop([u8; 30]);
+
+#[derive(PartialEq, Copy, Clone, Hash, Eq)]
+pub enum MoveDir {
+    Up,
+    Down,
+    Left,
+    Right,
+}
+
+impl MoveDir {
+    pub fn pos(&self) -> (i32, i32) {
+        match self {
+            MoveDir::Up => (0, -1),
+            MoveDir::Down => (0, 1),
+            MoveDir::Left => (-1, 0),
+            MoveDir::Right => (1, 0),
+        }
+    }
+
+    pub fn offset(&self) -> (f32, f32) {
+        match self {
+            MoveDir::Up => (-1., -1.),
+            MoveDir::Down => (1., 1.),
+            MoveDir::Left => (1., -1.),
+            MoveDir::Right => (-1., 1.),
+        }
+    }
+
+    pub fn from(key: KeyCode) -> Option<Self> {
+        match key {
+            KeyCode::Up => Some(MoveDir::Up),
+            KeyCode::Down => Some(MoveDir::Down),
+            KeyCode::Left => Some(MoveDir::Left),
+            KeyCode::Right => Some(MoveDir::Right),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Default)]
+pub struct SceneStatus {
+    pub cur_ev: i16,
+    pub cur_s: usize,
+    pub cur_d: (usize, usize, usize),
+    pub cur_pic: usize,
+    pub pos: Vec2,
+    pub facing: Option<MoveDir>,
+    pub is_new_game: bool,
+}
