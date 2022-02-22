@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use anyhow::Result;
 
 use bevy::asset::{AssetLoader, LoadContext, LoadedAsset};
@@ -10,7 +8,7 @@ use bevy::utils::BoxedFuture;
 #[derive(Debug, Clone, TypeUuid)]
 #[uuid = "7a14806a-672b-443b-8d16-4f18afefa465"]
 pub struct DataAsset {
-    pub data: Arc<[u8]>,
+    pub data: Vec<u8>,
 }
 
 #[derive(Default)]
@@ -26,7 +24,7 @@ impl AssetLoader for DataAssetLoader {
     }
 
     fn extensions(&self) -> &[&str] {
-        &["col"]
+        &["col", "002"]
     }
 }
 

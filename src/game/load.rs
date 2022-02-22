@@ -92,11 +92,42 @@ pub fn load(
             }
         });
 
-    if let Some(h) = game_load.data_handles.clone().into_iter().next() {
-        let ds = ds_assets.remove(h.clone()).unwrap();
-        commands.insert_resource(structs::load_color(ds.data.as_ref()));
-    }
-
+    game_load
+        .data_handles
+        .clone()
+        .into_iter()
+        .enumerate()
+        .for_each(|(idx, handle)| {
+            let ds = ds_assets.remove(handle.clone()).unwrap();
+            match idx {
+                0 => {
+                    // mmap.col
+                    // color
+                    commands.insert_resource(structs::load_color(&ds.data));
+                }
+                1 => {
+                    // earth.002
+                    commands.insert_resource(MmapEarth(structs::load_i16(&ds.data)));
+                }
+                2 => {
+                    // surface.002
+                    commands.insert_resource(MmapSurface(structs::load_i16(&ds.data)));
+                }
+                3 => {
+                    // building
+                    commands.insert_resource(MmapBuilding(structs::load_i16(&ds.data)));
+                }
+                4 => {
+                    // buildx
+                    commands.insert_resource(MmapBuildX(structs::load_i16(&ds.data)));
+                }
+                5 => {
+                    // buildy
+                    commands.insert_resource(MmapBuildY(structs::load_i16(&ds.data)));
+                }
+                _ => {}
+            }
+        });
     commands.init_resource::<ImageCache>();
 
     let mut sta = SceneStatus::default();
@@ -125,7 +156,15 @@ pub fn loading(mut commands: Commands, res: Res<AssetServer>) {
         res.load("org/data/thing.grp"),
     ];
 
-    let data_h = vec![res.load("org/data/mmap.col")];
+    let data_h = vec![
+        res.load("org/data/mmap.col"),
+        // mmap
+        res.load("org/data/earth.002"),
+        res.load("org/data/surface.002"),
+        res.load("org/data/building.002"),
+        res.load("org/data/buildx.002"),
+        res.load("org/data/buildy.002"),
+    ];
 
     commands.insert_resource(GameLoad {
         grp_handles: handles,

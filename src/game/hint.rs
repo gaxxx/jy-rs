@@ -78,7 +78,7 @@ fn update_hint_box(
             1,
         );
         if pic > 0 {
-            mb_meta = Some(image_cache.get_image(pic as usize / 2).1);
+            mb_meta = image_cache.get_image(pic as usize / 2).map(|v| v.1.clone());
         }
         let (mut text, _) = query.single_mut();
         text.sections[0].value = format!("cur_x : {}\n", sta.pos.x as i16);

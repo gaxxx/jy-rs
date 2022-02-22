@@ -8,6 +8,7 @@ use bevy::prelude::*;
 mod assets;
 mod hint;
 mod load;
+mod mmap;
 pub mod script;
 mod smap;
 mod sound;
@@ -47,6 +48,7 @@ impl bevy::prelude::Plugin for Plugin {
             .add_plugin(load::Plugin)
             .add_plugin(script::Plugin)
             .add_plugin(hint::Plugin)
+            .add_plugin(mmap::Plugin)
             .add_plugin(smap::Plugin);
 
         #[cfg(not(target_arch = "wasm32"))]

@@ -1,17 +1,16 @@
 #![allow(unused_mut)]
 #![allow(dead_code)]
 
+use std::collections::HashMap;
 use std::ops::ControlFlow;
 
 use bevy::app::Events;
 use bevy::prelude::*;
-use bevy::sprite::MaterialMesh2dBundle;
-use bevy::utils::HashMap;
 
 use crate::game::script::{JyEvent, SpriteMeta};
 use crate::game::structs::*;
 pub use crate::game::util::ImageCache;
-use crate::game::util::RenderHelper;
+use crate::game::util::{despawn_screen, RenderHelper};
 use crate::game::{script, structs, GameState, GrpAsset};
 
 pub struct Plugin;
@@ -23,9 +22,15 @@ impl bevy::prelude::Plugin for Plugin {
                 SystemSet::on_update(GameState::Smap)
                     .with_system(movement.label("move"))
                     .with_system(on_event.after("move")),
+            )
+            .add_system_set(
+                SystemSet::on_exit(GameState::Smap).with_system(despawn_screen::<SMapScreen>),
             );
     }
 }
+
+#[derive(Component)]
+pub struct SMapScreen;
 
 #[allow(unused_mut)]
 pub fn setup(
@@ -34,77 +39,63 @@ pub fn setup(
     _server: Res<AssetServer>,
     mut sta: ResMut<SceneStatus>,
     mut s_data: Res<SData>,
-    mut render_helper: ResMut<RenderHelper>,
     mut d_data: Res<DData>,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<ColorMaterial>>,
+    mut render_helper: ResMut<RenderHelper>,
     mut image_cache: ResMut<ImageCache>,
 ) {
     println!("setup here");
-    let mut x = sta.pos.x;
-    let mut y = sta.pos.y;
-    let x_off = (y - x) * XSCALE;
-    let y_off = (x + y) * YSCALE;
-    for h in 0..SCENE_HEIGHT {
-        for w in 0..SCENE_WIDTH {
-            render_helper.render(&mut commands, w, h, 0);
-            render_helper.render(&mut commands, w, h, 1);
-        }
-    }
+    for level in 0..=3 {
+        for h in 0..SCENE_HEIGHT {
+            for w in 0..SCENE_WIDTH {
+                let x = w as f32;
+                let y = h as f32;
 
-    for h in 0..SCENE_HEIGHT {
-        for w in 0..SCENE_WIDTH {
-            let x = w as f32;
-            let y = h as f32;
-            // pic id is a half
-            let d = (1..=5)
-                .map(|v| s_data.get_texture(structs::ENTRY_SCENE, w, h, v))
-                .collect::<Vec<_>>();
-
-            if d[1] > 0 {
-                let mut transform =
-                    Transform::from_xyz((x - y) * XSCALE + x_off, (-x - y) * YSCALE + y_off, 3.0);
-                let (image_h, meta, _) = image_cache.get_image(d[1] as usize / 2);
-                transform.translation.x -= meta.2 - meta.0 as f32 / 2.;
-                transform.translation.y += meta.3 - meta.1 as f32 / 2. + d[4] as f32;
-                commands
-                    .spawn_bundle(MaterialMesh2dBundle {
-                        mesh: meshes.add(Mesh::from(shape::Quad::default())).into(),
-                        transform: transform.with_scale(Vec3::new(
-                            meta.0 as f32,
-                            meta.1 as f32,
-                            0.,
-                        )),
-                        material: materials.add(ColorMaterial::from(image_h)),
-                        ..Default::default()
-                    })
-                    .insert(NetCell);
-            }
-
-            if d[2] > 0 {
-                let pic = d_data.get_d(sta.cur_s as usize, d[2] as usize, 7);
-                let mut transform =
-                    Transform::from_xyz((x - y) * XSCALE + x_off, (-x - y) * YSCALE + y_off, 3.0);
-                if pic > 0 {
-                    let (image_h, meta, _) = image_cache.get_image(pic as usize / 2);
-                    transform.translation.x -= meta.2 - meta.0 as f32 / 2.;
-                    transform.translation.y += meta.3 - meta.1 as f32 / 2. + d[3] as f32;
-                    let mut entity = commands
-                        .spawn_bundle(MaterialMesh2dBundle {
-                            mesh: meshes.add(Mesh::from(shape::Quad::default())).into(),
-                            transform: transform.with_scale(Vec3::new(
-                                meta.0 as f32,
-                                meta.1 as f32,
-                                0.,
-                            )),
-                            material: materials.add(ColorMaterial::from(image_h)),
-                            ..Default::default()
-                        })
-                        .insert(NetCell)
-                        .id();
-                    commands
-                        .entity(entity)
-                        .insert(JyBox(entity, x as usize, y as usize));
+                let id = s_data.get_texture(sta.cur_s, w, h, level);
+                if id <= 0 {
+                    continue;
+                }
+                let mut transform = sta.offset(x, y, level as f32);
+                let mut pic_id;
+                match level {
+                    0 => {
+                        // earth
+                        pic_id = id / 2;
+                    }
+                    1 => {
+                        // building
+                        // add building offset
+                        transform.translation.y += s_data.get_texture(sta.cur_s, w, h, 4) as f32;
+                        pic_id = id / 2;
+                    }
+                    2 => {
+                        // air
+                        // add air offset
+                        transform.translation.y += s_data.get_texture(sta.cur_s, w, h, 5) as f32;
+                        pic_id = id / 2;
+                    }
+                    3 => {
+                        // event
+                        // add event offset
+                        transform.translation.y += s_data.get_texture(sta.cur_s, w, h, 4) as f32;
+                        pic_id = d_data.get_d(sta.cur_s as usize, id as usize, 7) / 2;
+                    }
+                    _ => {
+                        todo!()
+                    }
+                }
+                if pic_id > 0 {
+                    render_helper
+                        .render(&mut commands, pic_id as usize, transform)
+                        .map(|v| {
+                            // for event up, we'll update the image after it being triggered.
+                            // like when a box is opened, the image would update,
+                            // so we need to get the entity and despawn & respawn it with another image.
+                            let mut ecmd = commands.entity(v);
+                            ecmd.insert(SMapScreen);
+                            if level == 3 {
+                                ecmd.insert(JyBox(v, w, h));
+                            }
+                        });
                 }
             }
         }
@@ -116,25 +107,27 @@ pub fn setup(
     let x = sta.pos.x;
     let y = sta.pos.y;
 
-    let (image_h, meta, _) = image_cache.get_image(sta.cur_pic);
-    let mut transform = Transform::from_xyz((x - y) * XSCALE, (-y - x) * YSCALE + y_off, 3.0);
-    debug!(
-        "sprite init pos {},{}",
-        transform.translation.x, transform.translation.y
-    );
+    if let Some((image_h, meta, _)) = image_cache.get_image(sta.cur_pic) {
+        let mut transform = Transform::from_xyz(0., 0., 3.0);
+        debug!(
+            "sprite init pos {},{}",
+            transform.translation.x, transform.translation.y
+        );
 
-    let height = s_data.get_texture(structs::ENTRY_SCENE, x as usize, y as usize, 4);
-    println!("height is {}", height);
+        let height = s_data.get_texture(sta.cur_s, x as usize, y as usize, 4);
+        println!("height is {}", height);
 
-    transform.translation.x -= meta.2 - meta.0 as f32 / 2.;
-    transform.translation.y += meta.3 - meta.1 as f32 / 2. + height as f32;
-    commands
-        .spawn_bundle(SpriteBundle {
-            transform,
-            texture: image_h,
-            ..Default::default()
-        })
-        .insert(Me);
+        transform.translation.x -= meta.2 - meta.0 as f32 / 2.;
+        transform.translation.y += meta.3 - meta.1 as f32 / 2. + height as f32;
+        commands
+            .spawn_bundle(SpriteBundle {
+                transform,
+                texture: image_h,
+                ..Default::default()
+            })
+            .insert(SMapScreen)
+            .insert(Me);
+    }
 }
 
 #[derive(Component)]
@@ -180,18 +173,20 @@ pub fn movement(
     time: Res<Time>,
     mut sta: ResMut<SceneStatus>,
     s_data: Res<SData>,
+    scenes: Res<Vec<structs::Scene>>,
     d_data: Res<DData>,
+    mut state: ResMut<State<GameState>>,
     keyboard_input: ResMut<Input<KeyCode>>,
     mut query: Query<&mut Transform, (With<NetCell>, Without<Me>)>,
     mut me_query: Query<(&mut SpriteMeta, &mut TextureAtlasSprite), With<Me>>,
 ) {
-    let mut moves = HashMap::default();
+    let mut moves = HashMap::new();
     moves.insert(KeyCode::Up, MoveDir::Up);
     moves.insert(KeyCode::Down, MoveDir::Down);
     moves.insert(KeyCode::Left, MoveDir::Left);
     moves.insert(KeyCode::Right, MoveDir::Right);
 
-    let mut facing = HashMap::default();
+    let mut facing = HashMap::new();
     facing.insert(MoveDir::Up, 0);
     facing.insert(MoveDir::Right, 7);
     facing.insert(MoveDir::Left, 14);
@@ -240,11 +235,19 @@ pub fn movement(
             for mut iter in query.iter_mut() {
                 iter.translation.x += dir.offset().0 * XSCALE;
                 iter.translation.y += dir.offset().1 * YSCALE;
-
-                // pos.pos.y = next_y;
             }
             return ControlFlow::Break(());
         }
         ControlFlow::Continue(())
     });
+
+    if (sta.pos.x as i16 == scenes[sta.cur_s].exit_x1
+        && sta.pos.y as i16 == scenes[sta.cur_s].exit_y1)
+        || (sta.pos.x as i16 == scenes[sta.cur_s].exit_x2
+            && sta.pos.y as i16 == scenes[sta.cur_s].exit_y2)
+        || (sta.pos.x as i16 == scenes[sta.cur_s].exit_x3
+            && sta.pos.y as i16 == scenes[sta.cur_s].exit_y3)
+    {
+        state.set(GameState::Mmap).unwrap();
+    }
 }

@@ -2,11 +2,10 @@
 
 use bevy::app::Events;
 use bevy::prelude::*;
-use bevy::sprite::MaterialMesh2dBundle;
 
-use crate::game::smap::{JyBox, Me, NetCell};
+use crate::game::smap::{JyBox, Me, SMapScreen};
 use crate::game::structs::*;
-use crate::game::util::ImageCache;
+use crate::game::util::{ImageCache, RenderHelper};
 use crate::game::GameState;
 
 #[derive(Component)]
@@ -161,10 +160,8 @@ fn handle_d_data(
     mut d_data: ResMut<DData>,
     mut mb_ev_script: Option<ResMut<EventScript>>,
     sta: ResMut<SceneStatus>,
-    mut meshes: ResMut<Assets<Mesh>>,
+    mut render_helper: ResMut<RenderHelper>,
     s_data: Res<SData>,
-    mut materials: ResMut<Assets<ColorMaterial>>,
-    mut image_cache: ResMut<ImageCache>,
     query: Query<(&Transform, &JyBox), With<JyBox>>,
 ) {
     if mb_ev_script.is_none() {
@@ -197,36 +194,15 @@ fn handle_d_data(
                     let x = bx.1 as f32;
                     let y = bx.2 as f32;
                     commands.entity(bx.0).despawn_recursive();
-
-                    let x_off = -(sta.pos.x - sta.pos.y) * XSCALE;
-                    let y_off = -(-sta.pos.y - sta.pos.x) * YSCALE;
-                    let pic = image_update.unwrap();
-                    let mut transform = Transform::from_xyz(
-                        (x - y) * XSCALE + x_off,
-                        (-x - y) * YSCALE + y_off,
-                        3.0,
-                    );
-                    let (image_h, meta, _) = image_cache.get_image(pic as usize / 2);
-                    let d3 =
-                        s_data.get_texture(sta.cur_s as usize, x as usize, y as usize, 4) as f32;
-                    transform.translation.x -= meta.2 - meta.0 as f32 / 2.;
-                    transform.translation.y += meta.3 - meta.1 as f32 / 2. as f32 + d3;
-                    let entity = commands
-                        .spawn_bundle(MaterialMesh2dBundle {
-                            mesh: meshes.add(Mesh::from(shape::Quad::default())).into(),
-                            transform: transform.with_scale(Vec3::new(
-                                meta.0 as f32,
-                                meta.1 as f32,
-                                0.,
-                            )),
-                            material: materials.add(ColorMaterial::from(image_h)),
-                            ..Default::default()
-                        })
-                        .insert(NetCell)
-                        .id();
-                    commands
-                        .entity(entity)
-                        .insert(JyBox(entity, x as usize, y as usize));
+                    render_helper
+                        .render(
+                            &mut commands,
+                            image_update.clone().unwrap() as usize,
+                            Transform::from_xyz(0., 0., 3.),
+                        )
+                        .map(|v| {
+                            commands.entity(v).insert(SMapScreen);
+                        });
                 }
             }
         }
@@ -263,7 +239,7 @@ fn handle_sprite(
             TextureAtlasBuilder::default().initial_size(Vec2::new(XSCALE * 2., YSCALE * 2.));
         let mut metas = vec![];
         (0..28).for_each(|v| {
-            if let (image_h, meta, Some(image)) = image_cache.get_image(sta.cur_pic + v) {
+            if let Some((image_h, meta, Some(image))) = image_cache.get_image(sta.cur_pic + v) {
                 metas.push(meta);
                 texture_builder.add_texture(image_h, &image);
             }
@@ -285,7 +261,8 @@ fn handle_sprite(
                 ..Default::default()
             })
             .insert(SpriteMeta(metas, Timer::from_seconds(0.5, true)))
-            .insert(Me);
+            .insert(Me)
+            .insert(SMapScreen);
         // if let Some((image, meta)) = image_cache.get_image(&*game, game.cur_pic) {
         //     transform.translation.x -= meta.2 - meta.0 as f32 / 2.;
         //     transform.translation.y += meta.3 - meta.1 as f32 / 2.;
@@ -352,6 +329,9 @@ pub fn execute_n(
                 ]
                 .into_iter(),
             );
+            instruct_3(events, -2, 0, 0, 0, -1, -1, -1, -1, -1, -1, -2, -2, -2); //  3(3):修改事件定义:当前场景:场景事件编号 [0]
+            instruct_3(events, -2, 1, -2, -2, 692, -1, -1, -2, -2, -2, -2, -2, -2);
+            //  3(3):修改事件定义:当前场景:场景事件编号 [1]
         }
         693 => {
             instruct_3(

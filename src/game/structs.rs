@@ -7,7 +7,7 @@ use std::{mem, slice};
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use lazy_static::lazy_static;
 
-use bevy::prelude::{Image, KeyCode, Vec2};
+use bevy::prelude::{Image, KeyCode, Transform, Vec2};
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 
 use crate::game::GrpAsset;
@@ -38,6 +38,11 @@ pub const SCENE_WIDTH: usize = 64;
 pub const SCENE_HEIGHT: usize = 64;
 // CC.DNUM=200;       --D*每个场景的事件数
 pub const DNUM: usize = 200;
+
+// 主地图宽
+pub const MMAP_WIDTH: usize = 480;
+// 主地图高
+pub const MMAP_HEIGH: usize = 480;
 
 pub const LAYER_NUM: usize = 6;
 
@@ -138,17 +143,17 @@ pub struct Scene {
     // CC.Scene_S["入口Y"]={40,0,2}
     entry_y: i16,
     // CC.Scene_S["出口X1"]={42,0,2}
-    exit_x1: i16,
+    pub exit_x1: i16,
     // CC.Scene_S["出口X2"]={44,0,2}
-    exit_x2: i16,
+    pub exit_x2: i16,
     // CC.Scene_S["出口X3"]={46,0,2}
-    exit_x3: i16,
+    pub exit_x3: i16,
     // CC.Scene_S["出口Y1"]={48,0,2}
-    exit_y1: i16,
+    pub exit_y1: i16,
     // CC.Scene_S["出口Y2"]={50,0,2}
-    exit_y2: i16,
+    pub exit_y2: i16,
     // CC.Scene_S["出口Y3"]={52,0,2}
-    exit_y3: i16,
+    pub exit_y3: i16,
     // CC.Scene_S["跳转口X1"]={54,0,2}
     jump_x1: i16,
     // CC.Scene_S["跳转口Y1"]={56,0,2}
@@ -626,6 +631,26 @@ pub fn load_color(data: &[u8]) -> Palette {
     )
 }
 
+pub struct MmapEarth(pub Vec<i16>);
+
+pub struct MmapSurface(pub Vec<i16>);
+
+pub struct MmapBuilding(pub Vec<i16>);
+
+pub struct MmapBuildX(pub Vec<i16>);
+
+pub struct MmapBuildY(pub Vec<i16>);
+
+pub fn load_i16(data: &[u8]) -> Vec<i16> {
+    let mut c = std::io::Cursor::new(data);
+    let mut out = vec![];
+    let end = data.len() as u64;
+    while c.position() != end {
+        out.push(read!(c, i16));
+    }
+    out
+}
+
 #[repr(C)]
 #[derive(Debug)]
 pub struct Thing {
@@ -927,4 +952,12 @@ pub struct SceneStatus {
     pub pos: Vec2,
     pub facing: Option<MoveDir>,
     pub is_new_game: bool,
+}
+
+impl SceneStatus {
+    pub fn offset(&self, x: f32, y: f32, z: f32) -> Transform {
+        let x_off = (self.pos.y - self.pos.x) * XSCALE;
+        let y_off = (self.pos.x + self.pos.y) * YSCALE;
+        Transform::from_xyz((x - y) * XSCALE + x_off, (-x - y) * YSCALE + y_off, z)
+    }
 }

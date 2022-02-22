@@ -37,15 +37,16 @@ impl ImageCache {
     pub fn get_image<'a>(
         &'a mut self,
         id: usize,
-    ) -> (Handle<Image>, TextureMeta, Option<&'a Image>) {
+    ) -> Option<(Handle<Image>, TextureMeta, Option<&'a Image>)> {
         if let Some((h, meta)) = self.cached.get(&id) {
-            (h.clone(), *meta, self.assets.get(h))
+            Some((h.clone(), *meta, self.assets.get(h)))
         } else if let Some((image, meta)) = self.smap.get_image(id, &self.palette.0) {
             let handle = self.assets.add(image);
             self.cached.insert(id, (handle.clone(), meta.clone()));
-            (handle.clone(), meta, self.assets.get(handle))
+            Some((handle.clone(), meta, self.assets.get(handle)))
         } else {
-            panic!("no image here, the asset id: {} is wrong", id)
+            println!("no image here, the asset id: {} is wrong", id);
+            None
         }
     }
 }
@@ -54,46 +55,38 @@ pub struct RenderHelper {
     image_cache: &'static mut ImageCache,
     sta: &'static SceneStatus,
     s_data: &'static SData,
+    d_data: &'static DData,
     meshes: &'static mut Assets<Mesh>,
     materials: &'static mut Assets<ColorMaterial>,
 }
 
 impl RenderHelper {
-    pub fn render(&mut self, commands: &mut Commands, w: usize, h: usize, level: usize) {
-        let x = w as f32;
-        let y = h as f32;
-        let x_off = (self.sta.pos.y - self.sta.pos.x) * XSCALE;
-        let y_off = (self.sta.pos.x + self.sta.pos.y) * YSCALE;
-        let pic = self.s_data.get_texture(self.sta.cur_s, w, h, level) / 2;
-
-        if pic > 0 {
-            let mut transform =
-                Transform::from_xyz((x - y) * XSCALE + x_off, (-x - y) * YSCALE + y_off, 1.0);
-
-            let (image_h, meta, _) = self.image_cache.get_image(pic as usize);
+    pub fn render(
+        &mut self,
+        commands: &mut Commands,
+        pic_id: usize,
+        mut transform: Transform,
+    ) -> Option<Entity> {
+        if let Some((image_h, meta, _)) = self.image_cache.get_image(pic_id as usize) {
             transform.translation.x -= meta.2 - meta.0 as f32 / 2.;
             transform.translation.y += meta.3 - meta.1 as f32 / 2.;
-
-            match level {
-                1 => {
-                    // add building offset
-                    transform.translation.y +=
-                        self.s_data.get_texture(self.sta.cur_s, w, h, 4) as f32;
-                }
-                _ => {}
-            }
-            commands
-                .spawn_bundle(MaterialMesh2dBundle {
-                    mesh: self.meshes.add(Mesh::from(shape::Quad::default())).into(),
-                    transform: transform.with_scale(Vec3::new(
-                        meta.0 as f32,
-                        meta.1 as f32,
-                        level as f32,
-                    )),
-                    material: self.materials.add(ColorMaterial::from(image_h)),
-                    ..Default::default()
-                })
-                .insert(NetCell);
+            Some(
+                commands
+                    .spawn_bundle(MaterialMesh2dBundle {
+                        mesh: self.meshes.add(Mesh::from(shape::Quad::default())).into(),
+                        transform: transform.with_scale(Vec3::new(
+                            meta.0 as f32,
+                            meta.1 as f32,
+                            0.,
+                        )),
+                        material: self.materials.add(ColorMaterial::from(image_h)),
+                        ..Default::default()
+                    })
+                    .insert(NetCell)
+                    .id(),
+            )
+        } else {
+            None
         }
     }
 }
@@ -105,6 +98,7 @@ impl FromWorld for RenderHelper {
         };
         let sta = unsafe { std::mem::transmute(world.get_resource::<SceneStatus>().unwrap()) };
         let s_data = unsafe { std::mem::transmute(world.get_resource::<SData>().unwrap()) };
+        let d_data = unsafe { std::mem::transmute(world.get_resource::<DData>().unwrap()) };
         let meshes = unsafe {
             std::mem::transmute(world.get_resource_mut::<Assets<Mesh>>().unwrap().as_mut())
         };
@@ -120,8 +114,17 @@ impl FromWorld for RenderHelper {
             image_cache,
             sta,
             s_data,
+            d_data,
             meshes,
             materials,
         }
+    }
+}
+
+// Generic system that takes a component as a parameter, and will despawn all entities with that component
+pub fn despawn_screen<T: Component>(to_despawn: Query<Entity, With<T>>, mut commands: Commands) {
+    for entity in to_despawn.iter() {
+        debug!("despawn entity {:?}", entity);
+        commands.entity(entity).despawn_recursive();
     }
 }
