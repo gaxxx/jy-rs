@@ -1,6 +1,11 @@
 # jy-rs
 yet another jy copy game using bevy
 
+# 致谢
+感谢 https://github.com/wwwjfy/legend-mac 
+按照他们的c + lua做的复刻
+
+
 # 版权声明
 本项目采用GPL3协议，用于爱好者的自误自乐和技术交流。
 
