@@ -44,7 +44,8 @@ cargo run --release --target wasm32-unknown-unknown
 暂时是想到哪做到哪，欢迎提rb
 
 - [x] 完成启动场景的render， 移动和事件 （除了跟娃娃的对话）
-- [ ] 完成主地图的移动 (WIP)
+- [x] 完成主地图的移动, 重写了canvas
+- [ ] 增加主地图的建筑
 
 
 

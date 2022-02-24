@@ -1,7 +1,7 @@
 #![allow(unused_mut)]
 #![allow(dead_code)]
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::ops::ControlFlow;
 
 use bevy::prelude::*;
@@ -10,10 +10,13 @@ use crate::game::script::SpriteMeta;
 use crate::game::smap::Me;
 use crate::game::structs::*;
 pub use crate::game::util::ImageCache;
-use crate::game::util::{despawn_screen, RenderHelper};
+use crate::game::util::{despawn_screen, Canvas, PosXY, RenderHelper};
 use crate::game::{GameState, GrpAsset};
 
 pub struct Plugin;
+
+const X_CACHE: f32 = 700.;
+const Y_CACHE: f32 = 600.;
 
 impl bevy::prelude::Plugin for Plugin {
     fn build(&self, app: &mut App) {
@@ -29,88 +32,105 @@ impl bevy::prelude::Plugin for Plugin {
     }
 }
 
+#[derive(Component, PartialEq, Eq, Hash)]
+pub struct MMapLocation(pub usize, pub usize);
+
 #[derive(Component)]
 pub struct MMapScreen;
+
+#[derive(Default)]
+pub struct MMapStatus {
+    pub cur_pic: usize,
+    pub pos: PosXY,
+}
+
+struct MMapCanvasWriter<'a, 'w, 's> {
+    commands: &'a mut Commands<'w, 's>,
+    location_set: &'a mut HashSet<MMapLocation>,
+    render_helper: &'a mut RenderHelper,
+    mmap_earth: &'a MmapEarth,
+}
+
+impl<'a, 'w, 's> MMapCanvasWriter<'a, 'w, 's> {
+    pub fn new(
+        commands: &'a mut Commands<'w, 's>,
+        location_set: &'a mut HashSet<MMapLocation>,
+        render_helper: &'a mut RenderHelper,
+        mmap_earth: &'a MmapEarth,
+    ) -> MMapCanvasWriter<'a, 'w, 's> {
+        Self {
+            commands,
+            location_set,
+            render_helper,
+            mmap_earth,
+        }
+    }
+
+    fn draw_at(&mut self, x: i32, y: i32, p: Vec3) {
+        if x >= 0 && x <= MMAP_WIDTH as i32 && y >= 0 && y < MMAP_HEIGH as i32 {
+            let w = x as usize;
+            let h = y as usize;
+            let loc = MMapLocation(w, h);
+            if self.location_set.contains(&loc) {
+                return;
+            }
+            self.location_set.insert(MMapLocation(w, h));
+
+            let offset = h * MMAP_WIDTH + w;
+            let pic = self.mmap_earth.0[offset] / 2;
+            if pic > 0 {
+                self.render_helper
+                    .render(self.commands, pic as usize, Transform::from_translation(p))
+                    .map(|v| {
+                        self.commands
+                            .entity(v)
+                            .insert(MMapLocation(w, h))
+                            .insert(MMapScreen);
+                    });
+            }
+        }
+    }
+}
 
 #[allow(unused_mut)]
 pub fn setup(
     mut commands: Commands,
     mut _grp_assets: ResMut<Assets<GrpAsset>>,
     _server: Res<AssetServer>,
-    mut image_cache: ResMut<ImageCache>,
-    mut sta: ResMut<SceneStatus>,
-    mut textures: ResMut<Assets<TextureAtlas>>,
+    mut sta: ResMut<MMapStatus>,
     mut images: ResMut<Assets<Image>>,
     mmap_earth: Res<MmapEarth>,
-    mmap_surface: Res<MmapSurface>,
     mut render_helper: ResMut<RenderHelper>,
 ) {
-    println!("setup mmap here");
-    for h in 0..MMAP_HEIGH {
-        for w in 0..MMAP_WIDTH {
-            let x = w as f32;
-            let y = h as f32;
-            let mut transform = sta.offset(x, y, 0.);
-            if transform.translation.x.abs() > 600. || transform.translation.y.abs() > 500. {
-                continue;
-            }
-            let offset = h * MMAP_WIDTH + w;
-            let pic = mmap_earth.0[offset] / 2;
-            if pic > 0 {
-                render_helper
-                    .render(&mut commands, pic as usize, transform)
-                    .map(|v| {
-                        commands.entity(v).insert(MMapScreen);
-                    });
-            }
-            let pic = mmap_surface.0[offset] / 2;
-            if pic > 0 {
-                render_helper
-                    .render(&mut commands, pic as usize, transform)
-                    .map(|v| {
-                        commands.entity(v).insert(MMapScreen);
-                    });
-            }
-        }
-    }
+    let mut location_set = HashSet::new();
+    println!("setup mmap here from {}:{}", sta.pos.x, sta.pos.y);
 
-    sta.cur_pic = 2501;
-    let mut texture_builder =
-        TextureAtlasBuilder::default().initial_size(Vec2::new(XSCALE * 2., YSCALE * 2.));
-    let mut metas = vec![];
-    (0..28).for_each(|v| {
-        if let Some((image_h, meta, Some(image))) = image_cache.get_image(sta.cur_pic + v) {
-            metas.push(meta);
-            texture_builder.add_texture(image_h, &image);
-        }
+    let mut m = MMapCanvasWriter::new(
+        &mut commands,
+        &mut location_set,
+        &mut render_helper,
+        &mmap_earth,
+    );
+    Canvas::update(&sta.pos, |x: i32, y: i32, p: Vec3| {
+        m.draw_at(x, y, p);
     });
-    let texture = texture_builder.finish(&mut images).unwrap();
-    let texture_atlas = textures.add(texture);
 
-    let mut transform = sta.offset(1., -1., 3.);
-    let meta = metas[0];
+    commands.insert_resource(location_set);
 
-    transform.translation.x -= meta.2 - meta.0 as f32 / 2.;
-    // add y scale to make the offset right, I don't know fucking why
-    transform.translation.y += YSCALE + meta.3 - meta.1 as f32 / 2.;
-    transform.translation.z = 4.;
-    commands
-        .spawn_bundle(SpriteSheetBundle {
-            texture_atlas,
-            transform,
-            ..Default::default()
-        })
-        .insert(SpriteMeta(metas, Timer::from_seconds(0.5, true)))
-        .insert(Me)
-        .insert(MMapScreen);
+    let entity = render_helper.render_sprite(&mut commands, &mut images);
+    commands.entity(entity).insert(Me).insert(MMapScreen);
     debug!("start mmap rending");
 }
 
 pub fn movement(
+    mut commands: Commands,
     time: Res<Time>,
-    mut sta: ResMut<SceneStatus>,
+    mut mta: ResMut<MMapStatus>,
+    mut location_set: ResMut<HashSet<MMapLocation>>,
     keyboard_input: ResMut<Input<KeyCode>>,
-    mut query: Query<&mut Transform, (With<MMapScreen>, Without<Me>)>,
+    mmap_earth: Res<MmapEarth>,
+    mut render_helper: ResMut<RenderHelper>,
+    mut query: Query<(&mut Transform, &mut MMapLocation, Entity), (With<MMapScreen>, Without<Me>)>,
     mut me_query: Query<(&mut SpriteMeta, &mut TextureAtlasSprite), With<Me>>,
 ) {
     let mut moves = HashMap::new();
@@ -129,34 +149,49 @@ pub fn movement(
     for (mut sprite_meta, mut sprite) in me_query.iter_mut() {
         sprite_meta.1.tick(time.delta());
         if sprite_meta.1.finished() {
-            sprite.index = *facing.get(sta.facing.as_ref().unwrap()).unwrap();
+            sprite.index = *facing.get(&mta.pos.facing()).unwrap();
         }
     }
 
     moves.iter().try_for_each(|(code, dir)| {
-        if keyboard_input.just_pressed(*code) {
-            let last_facing = sta.facing.unwrap();
-            sta.facing = MoveDir::from(*code);
-            let dir_change = last_facing != sta.facing.unwrap();
+        if keyboard_input.pressed(*code) {
+            let last_facing = mta.pos.facing.unwrap();
+            mta.pos.facing = MoveDir::from(*code);
+            let dir_change = last_facing != mta.pos.facing.unwrap();
 
             if let Some((mut sprite_meta, mut sprite)) = me_query.iter_mut().next() {
                 sprite_meta.1.reset();
                 if dir_change {
-                    sprite.index = *facing.get(sta.facing.as_ref().unwrap()).unwrap() as usize;
+                    sprite.index = *facing.get(&mta.pos.facing()).unwrap() as usize;
                 } else {
                     let base = sprite.index - sprite.index % 7;
                     let next = base + (sprite.index + 1) % 7;
                     sprite.index = next;
                 }
             }
-            let next_x = sta.pos.x + dir.pos().0 as f32;
-            let next_y = sta.pos.y + dir.pos().1 as f32;
+            let next_x = mta.pos.x + dir.pos().0 as f32;
+            let next_y = mta.pos.y + dir.pos().1 as f32;
+            // update mov of others
+            for (mut tt, loc, entity) in query.iter_mut() {
+                tt.translation.x += dir.offset().0 * XSCALE;
+                tt.translation.y += dir.offset().1 * YSCALE;
+                if tt.translation.x.abs() > X_CACHE || tt.translation.y.abs() > Y_CACHE {
+                    commands.entity(entity).despawn_recursive();
+                    location_set.remove(&loc);
+                }
+            }
 
-            sta.pos.x = next_x;
-            sta.pos.y = next_y;
-            for mut iter in query.iter_mut() {
-                iter.translation.x += dir.offset().0 * XSCALE;
-                iter.translation.y += dir.offset().1 * YSCALE;
+            mta.pos.update(next_x as usize, next_y as usize);
+            {
+                let mut m = MMapCanvasWriter::new(
+                    &mut commands,
+                    &mut location_set,
+                    &mut render_helper,
+                    &mmap_earth,
+                );
+                Canvas::update(&mta.pos, |x: i32, y: i32, p: Vec3| {
+                    m.draw_at(x, y, p);
+                });
             }
             return ControlFlow::Break(());
         }

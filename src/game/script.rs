@@ -194,11 +194,14 @@ fn handle_d_data(
                     let x = bx.1 as f32;
                     let y = bx.2 as f32;
                     commands.entity(bx.0).despawn_recursive();
+                    let mut trans = Transform::from_translation(sta.pos.to_real(x, y, 3.));
+                    trans.translation.y +=
+                        s_data.get_texture(sta.cur_s, x as usize, y as usize, 4) as f32;
                     render_helper
                         .render(
                             &mut commands,
-                            image_update.clone().unwrap() as usize,
-                            Transform::from_xyz(0., 0., 3.),
+                            image_update.clone().unwrap() as usize / 2,
+                            trans,
                         )
                         .map(|v| {
                             commands.entity(v).insert(SMapScreen);
@@ -216,10 +219,11 @@ fn handle_sprite(
     mb_ev_script: Option<ResMut<EventScript>>,
     query: Query<Entity, With<Me>>,
     asset_server: Res<AssetServer>,
-    mut sta: ResMut<SceneStatus>,
-    mut image_cache: ResMut<ImageCache>,
+    sta: ResMut<SceneStatus>,
+    image_cache: ResMut<ImageCache>,
     mut images: ResMut<Assets<Image>>,
-    mut textures: ResMut<Assets<TextureAtlas>>,
+    mut render_helper: ResMut<RenderHelper>,
+    textures: ResMut<Assets<TextureAtlas>>,
 ) {
     if mb_ev_script.is_none() {
         return;
@@ -230,50 +234,8 @@ fn handle_sprite(
         for entity in query.iter() {
             commands.entity(entity).despawn_recursive();
         }
-        let x = sta.pos.x;
-        let y = sta.pos.y;
-        let x_off = (y - x) * XSCALE;
-        let y_off = (y + x) * YSCALE;
-        sta.cur_pic = 2501;
-        let mut texture_builder =
-            TextureAtlasBuilder::default().initial_size(Vec2::new(XSCALE * 2., YSCALE * 2.));
-        let mut metas = vec![];
-        (0..28).for_each(|v| {
-            if let Some((image_h, meta, Some(image))) = image_cache.get_image(sta.cur_pic + v) {
-                metas.push(meta);
-                texture_builder.add_texture(image_h, &image);
-            }
-        });
-        let texture = texture_builder.finish(&mut images).unwrap();
-        let texture_atlas = textures.add(texture);
-        let mut transform =
-            Transform::from_xyz((x - y + 1.) * XSCALE, (-y - x - 1.) * YSCALE + y_off, 3.0);
-        let meta = metas[0];
-
-        transform.translation.x -= meta.2 - meta.0 as f32 / 2.;
-        // add y scale to make the offset right, I don't know fucking why
-        transform.translation.y += YSCALE + meta.3 - meta.1 as f32 / 2.;
-        transform.translation.z = 4.;
-        commands
-            .spawn_bundle(SpriteSheetBundle {
-                texture_atlas,
-                transform,
-                ..Default::default()
-            })
-            .insert(SpriteMeta(metas, Timer::from_seconds(0.5, true)))
-            .insert(Me)
-            .insert(SMapScreen);
-        // if let Some((image, meta)) = image_cache.get_image(&*game, game.cur_pic) {
-        //     transform.translation.x -= meta.2 - meta.0 as f32 / 2.;
-        //     transform.translation.y += meta.3 - meta.1 as f32 / 2.;
-        //     commands
-        //         .spawn_bundle(SpriteBundle {
-        //             transform,
-        //             texture: images.add(image),
-        //             ..Default::default()
-        //         })
-        //         .insert(Me);
-        // }
+        let entity = render_helper.render_sprite(&mut commands, &mut images);
+        commands.entity(entity).insert(Me).insert(SMapScreen);
         ev_script.dispatch.take();
     }
 }

@@ -7,9 +7,10 @@ use std::{mem, slice};
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use lazy_static::lazy_static;
 
-use bevy::prelude::{Image, KeyCode, Transform, Vec2};
+use bevy::prelude::{Image, KeyCode};
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 
+use crate::game::util::PosXY;
 use crate::game::GrpAsset;
 use crate::read;
 
@@ -905,7 +906,7 @@ pub struct Wugong([u8; 146]);
 
 pub struct Shop([u8; 30]);
 
-#[derive(PartialEq, Copy, Clone, Hash, Eq)]
+#[derive(PartialEq, Copy, Clone, Hash, Eq, Debug)]
 pub enum MoveDir {
     Up,
     Down,
@@ -948,16 +949,7 @@ pub struct SceneStatus {
     pub cur_ev: i16,
     pub cur_s: usize,
     pub cur_d: (usize, usize, usize),
+    pub pos: PosXY,
     pub cur_pic: usize,
-    pub pos: Vec2,
-    pub facing: Option<MoveDir>,
     pub is_new_game: bool,
-}
-
-impl SceneStatus {
-    pub fn offset(&self, x: f32, y: f32, z: f32) -> Transform {
-        let x_off = (self.pos.y - self.pos.x) * XSCALE;
-        let y_off = (self.pos.x + self.pos.y) * YSCALE;
-        Transform::from_xyz((x - y) * XSCALE + x_off, (-x - y) * YSCALE + y_off, z)
-    }
 }

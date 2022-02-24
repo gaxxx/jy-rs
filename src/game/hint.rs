@@ -1,7 +1,9 @@
 use bevy::prelude::*;
 
+use crate::game::mmap::MMapStatus;
 use crate::game::structs::{SData, SceneStatus};
 use crate::game::util::ImageCache;
+use crate::game::GameState;
 
 pub struct Plugin;
 
@@ -66,29 +68,47 @@ fn setup_hint_box(mut commands: Commands, asset_server: Res<AssetServer>) {
 fn update_hint_box(
     mut query: Query<(&mut Text, &HintInfo)>,
     mb_image_cache: Option<ResMut<ImageCache>>,
+    state: Res<State<GameState>>,
+    mb_mta: Option<Res<MMapStatus>>,
     mb_sdata: Option<Res<SData>>,
     mb_sta: Option<Res<SceneStatus>>,
 ) {
     let mut mb_meta = None;
-    if let (Some(sdata), Some(sta), Some(mut image_cache)) = (mb_sdata, mb_sta, mb_image_cache) {
-        let pic = sdata.get_texture(
-            sta.cur_s as usize,
-            sta.pos.x as usize,
-            sta.pos.y as usize,
-            1,
-        );
-        if pic > 0 {
-            mb_meta = image_cache.get_image(pic as usize / 2).map(|v| v.1.clone());
+    match state.current() {
+        GameState::Smap => {
+            if let (Some(sdata), Some(sta), Some(mut image_cache)) =
+                (mb_sdata, mb_sta, mb_image_cache)
+            {
+                let pic = sdata.get_texture(
+                    sta.cur_s as usize,
+                    sta.pos.x as usize,
+                    sta.pos.y as usize,
+                    1,
+                );
+                if pic > 0 {
+                    mb_meta = image_cache.get_image(pic as usize / 2).map(|v| v.1.clone());
+                }
+                let (mut text, _) = query.single_mut();
+                text.sections[0].value = format!("cur_x : {}\n", sta.pos.x as i16);
+                text.sections[1].value = format!("cur_y : {}\n", sta.pos.y as i16);
+                text.sections[2].value = format!("block : {}\n", pic);
+                text.sections[3].value = format!(
+                    "meta: {}\n",
+                    mb_meta
+                        .map(|v| { format!("w{}h{}:{}:{}", v.0, v.1, v.2, v.3) })
+                        .unwrap_or("".into())
+                );
+            }
         }
-        let (mut text, _) = query.single_mut();
-        text.sections[0].value = format!("cur_x : {}\n", sta.pos.x as i16);
-        text.sections[1].value = format!("cur_y : {}\n", sta.pos.y as i16);
-        text.sections[2].value = format!("block : {}\n", pic);
-        text.sections[3].value = format!(
-            "meta: {}\n",
-            mb_meta
-                .map(|v| { format!("w{}h{}:{}:{}", v.0, v.1, v.2, v.3) })
-                .unwrap_or("".into())
-        );
+        GameState::Mmap => {
+            if let Some(mta) = mb_mta {
+                let (mut text, _) = query.single_mut();
+                text.sections[0].value = format!("cur_x : {}\n", mta.pos.x as i16);
+                text.sections[1].value = format!("cur_y : {}\n", mta.pos.y as i16);
+                text.sections[2].value = format!("\n");
+                text.sections[3].value = format!("\n");
+            }
+        }
+        _ => {}
     }
 }

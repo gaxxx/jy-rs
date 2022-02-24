@@ -4,9 +4,10 @@ use bevy::asset::LoadState;
 use bevy::prelude::*;
 
 use crate::game::assets::*;
+use crate::game::mmap::MMapStatus;
 use crate::game::script::JyEvent;
 use crate::game::structs::*;
-use crate::game::util::{ImageCache, RenderHelper};
+use crate::game::util::{ImageCache, PosXY, RenderHelper};
 use crate::game::{structs, GameState};
 
 pub struct Plugin;
@@ -48,6 +49,7 @@ pub fn load(
     println!("load {}", game_load.grp_handles.len());
 
     let mut scene_num = 0;
+    let mut mmap_pos = PosXY::new(0, 0);
     game_load
         .grp_handles
         .clone()
@@ -59,6 +61,7 @@ pub fn load(
                 0 => {
                     let gd = GameData::new(gs);
 
+                    mmap_pos.update(gd.base.person_x as usize, gd.base.person_y as usize);
                     scene_num = gd.scenes.len();
                     commands.insert_resource(gd.base);
                     commands.insert_resource(gd.scenes);
@@ -87,6 +90,15 @@ pub fn load(
                 }
                 3 => {
                     commands.insert_resource(TextureMap::new(gs));
+                }
+                4 => {
+                    // hdgrp.grp
+                }
+                5 => {
+                    // thing.grp
+                }
+                6 => {
+                    // mmap.grp
                 }
                 _ => {}
             }
@@ -132,14 +144,18 @@ pub fn load(
 
     let mut sta = SceneStatus::default();
     sta.cur_s = structs::ENTRY_SCENE;
-    sta.pos.x = structs::ENTRY_X as f32;
-    sta.pos.y = structs::ENTRY_Y as f32;
+    sta.pos = PosXY::new(structs::ENTRY_X, structs::ENTRY_Y);
     sta.cur_pic = NEW_PERSON;
     sta.is_new_game = true;
     if sta.is_new_game {
         state.set(GameState::Smap).unwrap();
+        // state.set(GameState::Mmap).unwrap();
     }
     commands.insert_resource(sta);
+
+    let mut m_sta = MMapStatus::default();
+    m_sta.pos = mmap_pos;
+    commands.insert_resource(m_sta);
     commands.init_resource::<RenderHelper>();
     commands.remove_resource::<GameLoad>();
 }
@@ -154,6 +170,8 @@ pub fn loading(mut commands: Commands, res: Res<AssetServer>) {
         res.load("org/data/smap.grp"),
         res.load("org/data/hdgrp.grp"),
         res.load("org/data/thing.grp"),
+        // mmap
+        res.load("org/data/mmap.grp"),
     ];
 
     let data_h = vec![
