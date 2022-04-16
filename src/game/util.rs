@@ -6,29 +6,36 @@ use std::ops::Deref;
 use bevy::prelude::*;
 use bevy::sprite::MaterialMesh2dBundle;
 use bevy::utils::HashMap;
+use bevy_reflect::Map;
 
 use crate::game::script::SpriteMeta;
 use crate::game::smap::NetCell;
 use crate::game::structs::*;
 
 pub struct ImageCache {
-    pub cached: HashMap<usize, (Handle<Image>, TextureMeta)>,
-    pub smap: &'static TextureMap,
+    pub cached: HashMap<(MapType, usize), (Handle<Image>, TextureMeta)>,
+    pub textures : HashMap<MapType, &'static TextureMap>,
     pub palette: &'static Palette,
     pub assets: &'static mut Assets<Image>,
 }
 
 impl FromWorld for ImageCache {
     fn from_world(world: &mut World) -> Self {
-        let text_map = world.get_resource::<TextureMap>();
+        let smap_text_map = world.get_resource::<SMapTexture>();
+        let mmap_text_map = world.get_resource::<MMapTexture>();
         let palette = unsafe { std::mem::transmute(world.get_resource::<Palette>().unwrap()) };
-        let smap = unsafe { std::mem::transmute(text_map.unwrap()) };
+        let smap :&'static SMapTexture = unsafe { std::mem::transmute(smap_text_map.unwrap()) };
+        let mmap :&'static MMapTexture = unsafe { std::mem::transmute(mmap_text_map.unwrap()) };
+
         let assets = unsafe {
             std::mem::transmute(world.get_resource_mut::<Assets<Image>>().unwrap().as_mut())
         };
+        let mut textures = HashMap::default();
+        textures.insert(MapType::Mmap, &mmap.0);
+        textures.insert(MapType::Smap, &smap.0);
         Self {
             cached: HashMap::default(),
-            smap,
+            textures,
             palette,
             assets,
         }
@@ -38,13 +45,14 @@ impl FromWorld for ImageCache {
 impl ImageCache {
     pub fn get_image<'a>(
         &'a mut self,
+        mtype : MapType,
         id: usize,
     ) -> Option<(Handle<Image>, TextureMeta, Option<&'a Image>)> {
-        if let Some((h, meta)) = self.cached.get(&id) {
+        if let Some((h, meta)) = self.cached.get(&(mtype, id)) {
             Some((h.clone(), *meta, self.assets.get(h)))
-        } else if let Some((image, meta)) = self.smap.get_image(id, &self.palette.0) {
+        } else if let Some((image, meta)) = self.textures[&mtype].get_image(id, &self.palette.0) {
             let handle = self.assets.add(image);
-            self.cached.insert(id, (handle.clone(), meta.clone()));
+            self.cached.insert((mtype, id), (handle.clone(), meta.clone()));
             Some((handle.clone(), meta, self.assets.get(handle)))
         } else {
             println!("no image here, the asset id: {} is wrong", id);
@@ -67,10 +75,11 @@ impl RenderHelper {
     pub fn render(
         &mut self,
         commands: &mut Commands,
+        mtype : MapType,
         pic_id: usize,
         mut transform: Transform,
     ) -> Option<Entity> {
-        if let Some((image_h, meta, _)) = self.image_cache.get_image(pic_id as usize) {
+        if let Some((image_h, meta, _)) = self.image_cache.get_image(mtype, pic_id as usize) {
             transform.translation.x -= meta.2 - meta.0 as f32 / 2.;
             transform.translation.y += meta.3 - meta.1 as f32 / 2.;
             Some(
@@ -93,13 +102,13 @@ impl RenderHelper {
         }
     }
 
-    pub fn render_sprite(&mut self, commands: &mut Commands, images: &mut Assets<Image>) -> Entity {
+    pub fn render_sprite(&mut self, commands: &mut Commands, mtype : MapType, images: &mut Assets<Image>) -> Entity {
         let cur_pic = 2501;
         let mut texture_builder =
             TextureAtlasBuilder::default().initial_size(Vec2::new(XSCALE * 2., YSCALE * 2.));
         let mut metas = vec![];
         (0..28).for_each(|v| {
-            if let Some((image_h, meta, Some(image))) = self.image_cache.get_image(cur_pic + v) {
+            if let Some((image_h, meta, Some(image))) = self.image_cache.get_image(mtype, cur_pic + v) {
                 metas.push(meta);
                 texture_builder.add_texture(image_h, &image);
             }

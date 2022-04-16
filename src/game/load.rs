@@ -25,7 +25,7 @@ impl bevy::prelude::Plugin for Plugin {
 }
 
 pub struct GameLoad {
-    pub grp_handles: Vec<Handle<GrpAsset>>,
+    pub grp_handles: Vec<(GrpDataType, Handle<GrpAsset>)>,
     pub data_handles: Vec<Handle<DataAsset>>,
 }
 
@@ -40,7 +40,7 @@ pub fn load(
     let iter = game_load
         .grp_handles
         .iter()
-        .map(|v| v.id)
+        .map(|v| v.1.id)
         .chain(game_load.data_handles.iter().map(|v| v.id));
 
     if server.get_group_load_state(iter) != LoadState::Loaded {
@@ -56,9 +56,9 @@ pub fn load(
         .into_iter()
         .enumerate()
         .for_each(|(idx, handle)| {
-            let gs = grp_assets.remove(handle.clone()).unwrap();
-            match idx {
-                0 => {
+            let gs = grp_assets.remove(handle.1.clone()).unwrap();
+            match game_load.grp_handles[idx].0 {
+                GrpDataType::Ranger => {
                     let gd = GameData::new(gs);
 
                     mmap_pos.update(gd.base.person_x as usize, gd.base.person_y as usize);
@@ -70,8 +70,8 @@ pub fn load(
                     commands.insert_resource(gd.things);
                     commands.insert_resource(gd.wukongs);
                     commands.insert_resource(Backpack::default())
-                }
-                1 => {
+                },
+                GrpDataType::AllSin => {
                     debug!(
                         "snum {}, smap len {} -> to {}",
                         scene_num,
@@ -80,27 +80,28 @@ pub fn load(
                     );
                     commands.insert_resource(SData::new(gs));
                 }
-                2 => {
+                GrpDataType::AllDef => {
                     debug!(
                         "dmap {} -> {}",
                         gs.data.len(),
                         scene_num * structs::DNUM * 11 * 2
                     );
                     commands.insert_resource(DData::new(gs));
+
+
                 }
-                3 => {
-                    commands.insert_resource(TextureMap::new(gs));
+                GrpDataType::Smap => {
+                    commands.insert_resource(SMapTexture(TextureMap::new(gs)));
                 }
-                4 => {
-                    // hdgrp.grp
+                GrpDataType::Hdgrp => {
+
                 }
-                5 => {
-                    // thing.grp
+                GrpDataType::Thing => {
+
+                },
+                GrpDataType::Mmap => {
+                    commands.insert_resource(MMapTexture(TextureMap::new(gs)));
                 }
-                6 => {
-                    // mmap.grp
-                }
-                _ => {}
             }
         });
 
@@ -160,18 +161,39 @@ pub fn load(
     commands.remove_resource::<GameLoad>();
 }
 
+#[derive(Copy, Clone)]
+pub enum GrpDataType {
+    Ranger,
+    AllSin,
+    AllDef,
+    Smap,
+    Hdgrp,
+    Thing,
+    Mmap,
+}
+
+#[derive(Copy, Clone)]
+pub enum RawData {
+    Mmap,
+    Earth,
+    Surface,
+    Building,
+    BuildX,
+    BuildY
+}
+
 pub fn loading(mut commands: Commands, res: Res<AssetServer>) {
     debug!("start to load data");
     let handles = vec![
-        res.load("org/data/ranger.grp"),
-        res.load("org/data/allsin.grp"),
-        res.load("org/data/alldef.grp"),
+        (GrpDataType::Ranger, res.load("org/data/ranger.grp")),
+        (GrpDataType::AllSin, res.load("org/data/allsin.grp")),
+        (GrpDataType::AllDef, res.load("org/data/alldef.grp")),
         // smap
-        res.load("org/data/smap.grp"),
-        res.load("org/data/hdgrp.grp"),
-        res.load("org/data/thing.grp"),
+        (GrpDataType::Smap, res.load("org/data/smap.grp")),
+        (GrpDataType::Hdgrp,res.load("org/data/hdgrp.grp")),
+        (GrpDataType::Thing,res.load("org/data/thing.grp")),
         // mmap
-        res.load("org/data/mmap.grp"),
+        (GrpDataType::Mmap, res.load("org/data/mmap.grp")),
     ];
 
     let data_h = vec![

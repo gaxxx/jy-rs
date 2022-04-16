@@ -109,7 +109,7 @@ impl<'a, 'w, 's> SMapCanvasWriter<'a, 'w, 's> {
         }
         if pic_id > 0 {
             self.render_helper
-                .render(&mut self.commands, pic_id as usize, transform)
+                .render(&mut self.commands, MapType::Smap, pic_id as usize, transform)
                 .map(|v| {
                     // for event up, we'll update the image after it being triggered.
                     // like when a box is opened, the image would update,
@@ -160,7 +160,7 @@ pub fn setup(
     let x = sta.pos.x;
     let y = sta.pos.y;
 
-    if let Some((image_h, meta, _)) = image_cache.get_image(sta.cur_pic) {
+    if let Some((image_h, meta, _)) = image_cache.get_image(MapType::Smap, sta.cur_pic) {
         let mut transform = Transform::from_xyz(0., 0., 3.0);
         debug!(
             "sprite init pos {},{}",

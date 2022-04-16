@@ -502,6 +502,15 @@ pub struct TextureMap {
     pub gs: GrpAsset,
 }
 
+#[derive(Copy, Clone, PartialEq, Hash, Eq)]
+pub enum MapType {
+    Smap,
+    Mmap,
+}
+
+pub struct SMapTexture(pub TextureMap);
+pub struct MMapTexture(pub TextureMap);
+
 fn parse(
     buf: &mut Vec<u32>,
     w: usize,

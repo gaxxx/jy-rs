@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 
 use crate::game::mmap::MMapStatus;
-use crate::game::structs::{SData, SceneStatus};
+use crate::game::structs::{SData, SceneStatus, MapType};
 use crate::game::util::ImageCache;
 use crate::game::GameState;
 
@@ -86,7 +86,7 @@ fn update_hint_box(
                     1,
                 );
                 if pic > 0 {
-                    mb_meta = image_cache.get_image(pic as usize / 2).map(|v| v.1.clone());
+                    mb_meta = image_cache.get_image(MapType::Smap, pic as usize / 2).map(|v| v.1.clone());
                 }
                 let (mut text, _) = query.single_mut();
                 text.sections[0].value = format!("cur_x : {}\n", sta.pos.x as i16);

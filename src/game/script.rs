@@ -2,6 +2,7 @@
 
 use bevy::app::Events;
 use bevy::prelude::*;
+use bevy_reflect::Map;
 
 use crate::game::smap::{JyBox, Me, SMapScreen};
 use crate::game::structs::*;
@@ -200,6 +201,7 @@ fn handle_d_data(
                     render_helper
                         .render(
                             &mut commands,
+                            MapType::Smap,
                             image_update.clone().unwrap() as usize / 2,
                             trans,
                         )
@@ -234,7 +236,7 @@ fn handle_sprite(
         for entity in query.iter() {
             commands.entity(entity).despawn_recursive();
         }
-        let entity = render_helper.render_sprite(&mut commands, &mut images);
+        let entity = render_helper.render_sprite(&mut commands, MapType::Smap,&mut images);
         commands.entity(entity).insert(Me).insert(SMapScreen);
         ev_script.dispatch.take();
     }

@@ -49,6 +49,7 @@ struct MMapCanvasWriter<'a, 'w, 's> {
     location_set: &'a mut HashSet<MMapLocation>,
     render_helper: &'a mut RenderHelper,
     mmap_earth: &'a MmapEarth,
+    mmap_surface: &'a MmapSurface
 }
 
 impl<'a, 'w, 's> MMapCanvasWriter<'a, 'w, 's> {
@@ -57,16 +58,18 @@ impl<'a, 'w, 's> MMapCanvasWriter<'a, 'w, 's> {
         location_set: &'a mut HashSet<MMapLocation>,
         render_helper: &'a mut RenderHelper,
         mmap_earth: &'a MmapEarth,
+        mmap_surface: &'a MmapSurface,
     ) -> MMapCanvasWriter<'a, 'w, 's> {
         Self {
             commands,
             location_set,
             render_helper,
             mmap_earth,
+            mmap_surface,
         }
     }
 
-    fn draw_at(&mut self, x: i32, y: i32, p: Vec3) {
+    fn draw_at(&mut self, x: i32, y: i32, mut p: Vec3) {
         if x >= 0 && x <= MMAP_WIDTH as i32 && y >= 0 && y < MMAP_HEIGH as i32 {
             let w = x as usize;
             let h = y as usize;
@@ -77,10 +80,27 @@ impl<'a, 'w, 's> MMapCanvasWriter<'a, 'w, 's> {
             self.location_set.insert(MMapLocation(w, h));
 
             let offset = h * MMAP_WIDTH + w;
-            let pic = self.mmap_earth.0[offset] / 2;
+            let mut pic = self.mmap_earth.0[offset] / 2;
+            println!("draw at x:{}, y:{}", x, y);
             if pic > 0 {
+                println!("draw earth {}", pic);
                 self.render_helper
-                    .render(self.commands, pic as usize, Transform::from_translation(p))
+                    .render(self.commands, MapType::Mmap,pic as usize, Transform::from_translation(p))
+                    .map(|v| {
+                        self.commands
+                            .entity(v)
+                            .insert(MMapLocation(w, h))
+                            .insert(MMapScreen);
+                    });
+            }
+
+            pic = self.mmap_surface.0[offset] /2 ;
+
+            p.z += 1.0;
+            if pic > 0 {
+                println!("draw surfce {}", pic);
+                self.render_helper
+                    .render(self.commands, MapType::Mmap, pic as usize, Transform::from_translation(p))
                     .map(|v| {
                         self.commands
                             .entity(v)
@@ -100,6 +120,7 @@ pub fn setup(
     mut sta: ResMut<MMapStatus>,
     mut images: ResMut<Assets<Image>>,
     mmap_earth: Res<MmapEarth>,
+    mmap_surface: Res<MmapSurface>,
     mut render_helper: ResMut<RenderHelper>,
 ) {
     let mut location_set = HashSet::new();
@@ -110,6 +131,7 @@ pub fn setup(
         &mut location_set,
         &mut render_helper,
         &mmap_earth,
+        &mmap_surface
     );
     Canvas::update(&sta.pos, |x: i32, y: i32, p: Vec3| {
         m.draw_at(x, y, p);
@@ -117,7 +139,7 @@ pub fn setup(
 
     commands.insert_resource(location_set);
 
-    let entity = render_helper.render_sprite(&mut commands, &mut images);
+    let entity = render_helper.render_sprite(&mut commands, MapType::Mmap, &mut images);
     commands.entity(entity).insert(Me).insert(MMapScreen);
     debug!("start mmap rending");
 }
@@ -129,6 +151,7 @@ pub fn movement(
     mut location_set: ResMut<HashSet<MMapLocation>>,
     keyboard_input: ResMut<Input<KeyCode>>,
     mmap_earth: Res<MmapEarth>,
+    mmap_surface: Res<MmapSurface>,
     mut render_helper: ResMut<RenderHelper>,
     mut query: Query<(&mut Transform, &mut MMapLocation, Entity), (With<MMapScreen>, Without<Me>)>,
     mut me_query: Query<(&mut SpriteMeta, &mut TextureAtlasSprite), With<Me>>,
@@ -188,6 +211,7 @@ pub fn movement(
                     &mut location_set,
                     &mut render_helper,
                     &mmap_earth,
+                    &mmap_surface
                 );
                 Canvas::update(&mta.pos, |x: i32, y: i32, p: Vec3| {
                     m.draw_at(x, y, p);
