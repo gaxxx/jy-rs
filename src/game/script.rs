@@ -289,6 +289,9 @@ pub fn execute_n(
                     JyEvent::Cls,
                     JyEvent::Dialog("Who am I".into()),
                     JyEvent::Cls,
+		    // add by my little kid.
+                    JyEvent::Dialog("我爱我的宝宝".into()),
+                    JyEvent::Cls,
                     JyEvent::Sprite,
                 ]
                 .into_iter(),
