@@ -14,7 +14,7 @@ mod smap;
 mod sound;
 mod splash;
 pub mod structs;
-mod util;
+pub(crate) mod util;
 
 pub trait Menu {
     fn up(&self) -> Self;

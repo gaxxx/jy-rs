@@ -281,3 +281,23 @@ impl Canvas {
         }
     }
 }
+
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use std::fs::File;
+    use std::io::Write;
+    use crate::game::GrpAsset;
+    use crate::game::test::load_gs;
+    #[test]
+    fn load_building() {
+    let ms = load_gs("./assets/org/data/mmap.grp".into(), "./assets/org/data/mmap.idx".into());
+    assert!(ms.is_ok());
+    let gs = ms.ok().unwrap();
+    let maybe_data = gs.idx(1128).unwrap();
+    let mut f = File::create("/tmp/test.png").unwrap();
+    f.write(maybe_data);
+}
+
+}

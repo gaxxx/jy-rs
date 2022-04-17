@@ -78,3 +78,40 @@ async fn load_grp<'a, 'b>(
 
     Ok(())
 }
+
+
+#[cfg(test)]
+pub mod test {
+    use std::io::*;
+    use std::fs::File;
+    use super::GrpAsset;
+    use byteorder::LittleEndian;
+
+    use byteorder::ReadBytesExt;
+    pub fn load_gs(grp_file : String, idx_file : String) -> Result<GrpAsset> {
+        let mut data = vec![];
+        let mut idx_data = vec![];
+        File::open(grp_file)
+            .unwrap()
+            .read_to_end(&mut data)?;
+        File::open(idx_file)
+            .unwrap()
+            .read_to_end(&mut idx_data)?;
+    
+        let mut idx = vec![0];
+        let mut cursor = std::io::Cursor::new(idx_data.as_slice());
+        while let Ok(ret) = cursor.read_u32::<LittleEndian>() {
+            idx.push(ret as usize);
+        }
+        Ok(GrpAsset {
+            idx,
+            data: data.as_slice().into(),
+        })
+    }
+    
+    #[test]
+    fn test_asset() {
+        let gs = load_gs("./assets/org/data/smap.grp".into(), "./assets/org/data/smap.idx".into());
+        assert!(gs.is_ok());
+    }
+}
