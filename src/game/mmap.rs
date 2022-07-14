@@ -116,7 +116,7 @@ impl<'a, 'w, 's> MMapCanvasWriter<'a, 'w, 's> {
                 self.draw_pic(pic, w, h, p);
             }
 
-            pic = self.mmap_buiding.0[offset /2];
+            pic = self.mmap_buiding.0[offset] / 2;
             p.z += 1.0;
             if pic > 0 {
                 println!("draw buiding {} at x:y {}:{} ", pic, x, y);
