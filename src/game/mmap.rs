@@ -2,12 +2,13 @@
 #![allow(dead_code)]
 
 use std::collections::{HashMap, HashSet};
-use std::ops::ControlFlow;
+use std::ops::{ControlFlow};
 
 use bevy::prelude::*;
 
 use crate::game::script::SpriteMeta;
 use crate::game::smap::Me;
+use crate::game::structs;
 use crate::game::structs::*;
 pub use crate::game::util::ImageCache;
 use crate::game::util::{despawn_screen, Canvas, PosXY, RenderHelper};
@@ -170,6 +171,9 @@ pub fn movement(
     mut mta: ResMut<MMapStatus>,
     mut location_set: ResMut<HashSet<MMapLocation>>,
     keyboard_input: ResMut<Input<KeyCode>>,
+    mut sta: ResMut<SceneStatus>,
+    scenes : Res<Vec<structs::Scene>>,
+    mut state: ResMut<State<GameState>>,
     mmap_earth: Res<MmapEarth>,
     mmap_surface: Res<MmapSurface>,
     mmap_buiding: Res<MmapBuilding>,
@@ -217,6 +221,26 @@ pub fn movement(
             }
             let next_x = mta.pos.x + dir.pos().0 as f32;
             let next_y = mta.pos.y + dir.pos().1 as f32;
+
+            // check movement hits
+            let maybe_scene = scenes.iter().try_for_each(|s| {
+                if (s.out_entry_x1 == next_x as i16 && s.out_entry_y1 == next_y as i16)
+                || (s.out_entry_x2 == next_x as i16 && s.out_entry_y2 == next_y as i16)  {
+                    return ControlFlow::Break(s)
+                }
+                ControlFlow::Continue(())
+            });
+
+            if let ControlFlow::Break(sc) = maybe_scene {
+                state.set(GameState::Smap).unwrap();
+                sta.cur_s = sc.code as usize;
+                sta.pos = PosXY::new(sc.entry_x as usize, sc.entry_y as usize);
+                sta.pos.facing = Some(MoveDir::Up);
+                return ControlFlow::Break(());
+            }
+
+            // check if we could pass
+
             // update mov of others
             for (mut tt, loc, entity) in query.iter_mut() {
                 tt.translation.x += dir.offset().0 * XSCALE;

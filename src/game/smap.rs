@@ -132,8 +132,10 @@ pub fn setup(
     mut sta: ResMut<SceneStatus>,
     mut s_data: Res<SData>,
     mut d_data: Res<DData>,
+    query: Query<Entity, With<Me>>,
     mut render_helper: ResMut<RenderHelper>,
     mut image_cache: ResMut<ImageCache>,
+    mut images: ResMut<Assets<Image>>,
 ) {
     println!("setup here");
     let mut location_set = HashSet::new();
@@ -160,28 +162,35 @@ pub fn setup(
     let x = sta.pos.x;
     let y = sta.pos.y;
 
-    if let Some((image_h, meta, _)) = image_cache.get_image(MapType::Smap, sta.cur_pic) {
-        let mut transform = Transform::from_xyz(0., 0., 3.0);
-        debug!(
-            "sprite init pos {},{}",
-            transform.translation.x, transform.translation.y
-        );
+    if sta.is_new_game {
+        if let Some((image_h, meta, _)) = image_cache.get_image(MapType::Smap, sta.cur_pic) {
+            let mut transform = Transform::from_xyz(0., 0., 3.0);
+            debug!(
+                "sprite init pos {},{}",
+                transform.translation.x, transform.translation.y
+            );
 
-        let height = s_data.get_texture(sta.cur_s, x as usize, y as usize, 4);
-        println!("height is {}", height);
+            let height = s_data.get_texture(sta.cur_s, x as usize, y as usize, 4);
+            println!("height is {}", height);
 
-        transform.translation.x -= meta.2 - meta.0 as f32 / 2.;
-        transform.translation.y += meta.3 - meta.1 as f32 / 2. + height as f32;
-        commands
-            .spawn_bundle(SpriteBundle {
-                transform,
-                texture: image_h,
-                ..Default::default()
-            })
-            .insert(SMapScreen)
-            .insert(Me);
+            transform.translation.x -= meta.2 - meta.0 as f32 / 2.;
+            transform.translation.y += meta.3 - meta.1 as f32 / 2. + height as f32;
+            commands
+                .spawn_bundle(SpriteBundle {
+                    transform,
+                    texture: image_h,
+                    ..Default::default()
+                })
+                .insert(SMapScreen)
+                .insert(Me);
+        }
+        commands.insert_resource(location_set);
+    } else {
+        let entity = render_helper.render_sprite(&mut commands, MapType::Smap,&mut images);
+        commands.entity(entity).insert(Me).insert(SMapScreen);
     }
-    commands.insert_resource(location_set);
+
+
 }
 
 #[derive(Component)]

@@ -120,29 +120,29 @@ pub struct Backpack {
 #[derive(Debug)]
 pub struct Scene {
     // CC.Scene_S["代号"]={0,0,2}
-    code: i16,
+    pub code: i16,
     // CC.Scene_S["名称"]={2,2,20}
-    name: [u8; 20],
+    pub name: [u8; 20],
     // CC.Scene_S["出门音乐"]={22,0,2}
-    leave_music: i16,
+    pub leave_music: i16,
     // CC.Scene_S["进门音乐"]={24,0,2}
-    enter_music: i16,
+    pub enter_music: i16,
     // CC.Scene_S["跳转场景"]={26,0,2}
-    jump: i16,
+    pub jump: i16,
     // CC.Scene_S["进入条件"]={28,0,2}
-    enter_pre: i16,
+    pub enter_pre: i16,
     // CC.Scene_S["外景入口X1"]={30,0,2}
-    out_entry_x1: i16,
+    pub out_entry_x1: i16,
     // CC.Scene_S["外景入口Y1"]={32,0,2}
-    out_entry_y1: i16,
+    pub out_entry_y1: i16,
     // CC.Scene_S["外景入口X2"]={34,0,2}
-    out_entry_x2: i16,
+    pub out_entry_x2: i16,
     // CC.Scene_S["外景入口Y2"]={36,0,2}
-    out_entry_y2: i16,
+    pub out_entry_y2: i16,
     // CC.Scene_S["入口X"]={38,0,2}
-    entry_x: i16,
+    pub entry_x: i16,
     // CC.Scene_S["入口Y"]={40,0,2}
-    entry_y: i16,
+    pub entry_y: i16,
     // CC.Scene_S["出口X1"]={42,0,2}
     pub exit_x1: i16,
     // CC.Scene_S["出口X2"]={44,0,2}
@@ -156,13 +156,13 @@ pub struct Scene {
     // CC.Scene_S["出口Y3"]={52,0,2}
     pub exit_y3: i16,
     // CC.Scene_S["跳转口X1"]={54,0,2}
-    jump_x1: i16,
+    pub jump_x1: i16,
     // CC.Scene_S["跳转口Y1"]={56,0,2}
-    jump_y1: i16,
+    pub jump_y1: i16,
     // CC.Scene_S["跳转口X2"]={58,0,2}
-    jump_x2: i16,
+    pub jump_x2: i16,
     // CC.Scene_S["跳转口Y2"]={60,0,2}
-    jump_y2: i16,
+    pub jump_y2: i16,
 }
 
 #[repr(C)]
