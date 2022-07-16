@@ -184,11 +184,11 @@ pub fn setup(
                 .insert(SMapScreen)
                 .insert(Me);
         }
-        commands.insert_resource(location_set);
     } else {
         let entity = render_helper.render_sprite(&mut commands, MapType::Smap,&mut images);
         commands.entity(entity).insert(Me).insert(SMapScreen);
     }
+    commands.insert_resource(location_set);
 
 
 }

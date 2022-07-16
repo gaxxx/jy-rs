@@ -240,6 +240,10 @@ pub fn movement(
             }
 
             // check if we could pass
+            let offset = next_y as usize* MMAP_WIDTH + next_x as usize;
+            if mmap_buildx.0[offset] > 0 || mmap_buildy.0[offset] > 0 {
+                return ControlFlow::Break(());
+            }
 
             // update mov of others
             for (mut tt, loc, entity) in query.iter_mut() {
