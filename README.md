@@ -5,6 +5,9 @@ yet another jy copy game using bevy
 感谢 https://github.com/wwwjfy/legend-mac 
 按照他们的c + lua做的复刻
 
+# Updates
+正在添加lua指令 (4 / 32)
+
 
 # 版权声明
 本项目采用GPL3协议，用于爱好者的自误自乐和技术交流。
@@ -45,7 +48,8 @@ cargo run --release --target wasm32-unknown-unknown
 
 - [x] 完成启动场景的render， 移动和事件 （除了跟娃娃的对话）
 - [x] 完成主地图的移动, 重写了canvas
-- [ ] 增加主地图的建筑
+- [x] 增加主地图的建筑
+- [ ] 增加lua脚本的支持
 
 
 
