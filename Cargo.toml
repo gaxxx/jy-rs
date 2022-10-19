@@ -20,6 +20,7 @@ itertools = "0.10.2"
 console_error_panic_hook = "0.1"
 bevy_reflect = { path = "../bevy/crates/bevy_reflect" }
 bevy_ecs = { path = "../bevy/crates/bevy_ecs" }
+rlua = "0.19.4"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 bevy = { path = "../bevy" }

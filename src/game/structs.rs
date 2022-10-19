@@ -114,7 +114,7 @@ pub struct Base {
 
 #[derive(Debug, Default)]
 pub struct Backpack {
-    pub items: Vec<(i32, i32)>,
+    pub items: Vec<(i16, i16)>,
 }
 
 #[derive(Debug)]

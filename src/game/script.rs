@@ -2,12 +2,56 @@
 
 use bevy::app::Events;
 use bevy::prelude::*;
-use bevy_reflect::Map;
+use lazy_static::lazy_static;
 
 use crate::game::smap::{JyBox, Me, SMapScreen};
 use crate::game::structs::*;
 use crate::game::util::{ImageCache, RenderHelper};
 use crate::game::GameState;
+use rlua::Lua;
+use std::fs::File;
+use std::io::*;
+use std::sync::Mutex;
+
+#[cfg(test)]
+pub mod test {
+    use rlua::Lua;
+
+    #[test]
+    fn test_lua() {
+        let lua = Lua::new();
+
+        // In order to interact with Lua values at all, you must do so inside a callback given to the
+        // `Lua::context` method.  This provides some extra safety and allows the rlua API to avoid some
+        // extra runtime checks.
+        lua.context(|lua_ctx| {
+            // You can get and set global variables.  Notice that the globals table here is a permanent
+            // reference to _G, and it is mutated behind the scenes as Lua code is loaded.  This API is
+            // based heavily around sharing and internal mutation (just like Lua itself).
+
+            let globals = lua_ctx.globals();
+            let print_str = lua_ctx
+                .create_function(|_, s: String| {
+                    println!("{}", s);
+                    Ok(true)
+                })
+                .unwrap();
+            globals.set("print_str", print_str).unwrap();
+
+            assert_eq!(
+                lua_ctx
+                    .load(
+                        r#"
+                            print_str("huhuhu")
+                            "#,
+                    )
+                    .eval::<bool>()
+                    .unwrap(),
+                true
+            );
+        });
+    }
+}
 
 #[derive(Component)]
 pub struct DialogBox;
@@ -18,7 +62,7 @@ pub enum JyEvent {
     Cls,
     Sprite,
     Data(i16, i16, Vec<(usize, i16)>),
-    Instruct2(i32, i32),
+    Instruct2(i16, i16),
 }
 
 #[derive(Component)]
@@ -117,7 +161,7 @@ fn handle_dialog_event(
     }
 }
 
-fn add_to_backpack(backpack: &mut ResMut<Backpack>, thing: i32, size: i32) {
+fn add_to_backpack(backpack: &mut ResMut<Backpack>, thing: i16, size: i16) {
     match backpack
         .items
         .iter_mut()
@@ -236,7 +280,7 @@ fn handle_sprite(
         for entity in query.iter() {
             commands.entity(entity).despawn_recursive();
         }
-        let entity = render_helper.render_sprite(&mut commands, MapType::Smap,&mut images);
+        let entity = render_helper.render_sprite(&mut commands, MapType::Smap, &mut images);
         commands.entity(entity).insert(Me).insert(SMapScreen);
         ev_script.dispatch.take();
     }
@@ -273,97 +317,53 @@ fn check_input(keycode: ResMut<Input<KeyCode>>, mut mb_ev_script: Option<ResMut<
     }
 }
 
+lazy_static! {
+    pub static ref S_LUA: Mutex<Lua> = Mutex::new(init_lua());
+    pub static ref S_EVENT_QUE: Mutex<Vec<JyEvent>> = Mutex::new(vec![]);
+}
+
 pub fn execute_n(
     commands: &mut Commands,
     state: &mut ResMut<State<GameState>>,
     events: &mut ResMut<Events<JyEvent>>,
     event_id: i16,
 ) {
-    let mut enter_inter = true;
-    match event_id {
-        691 => {
-            println!("send dialog");
-            events.extend(
-                vec![
-                    JyEvent::Dialog("Where am I".into()),
-                    JyEvent::Cls,
-                    JyEvent::Dialog("Who am I".into()),
-                    JyEvent::Cls,
-		    // add by my little kid.
-                    JyEvent::Dialog("我爱我的宝宝".into()),
-                    JyEvent::Cls,
-                    JyEvent::Sprite,
-                ]
-                .into_iter(),
-            );
-            instruct_3(events, -2, 0, 0, 0, -1, -1, -1, -1, -1, -1, -2, -2, -2); //  3(3):修改事件定义:当前场景:场景事件编号 [0]
-            instruct_3(events, -2, 1, -2, -2, 692, -1, -1, -2, -2, -2, -2, -2, -2);
-            //  3(3):修改事件定义:当前场景:场景事件编号 [1]
-        }
-        693 => {
-            instruct_3(
-                events, -2, -2, -2, -2, -1, -1, -1, 3500, 3500, 3500, -2, -2, -2,
-            ); //  3(3):修改事件定义:当前场景:当前场景事件编号
-            instruct_2(events, 174, 100); //  2(2):得到物品[银两][100]
-        }
-        694 => {
-            instruct_3(
-                events, -2, -2, -2, -2, -1, -1, -1, 3496, 3496, 3496, -2, -2, -2,
-            ); //  3(3):修改事件定义:当前场景:当前场景事件编号
-            instruct_2(events, 171, 10); //  2(2):得到物品[药材][10]
-        }
-        695 => {
-            instruct_3(
-                events, -2, -2, -2, -2, -1, -1, -1, 2492, 2492, 2492, -2, -2, -2,
-            ); //  3(3):修改事件定义:当前场景:当前场景事件编号
-            instruct_2(events, 1, 3); //  2(2):得到物品[精气丸][3]
-        }
-        696 => {
-            instruct_3(
-                events, -2, -2, -2, -2, -1, -1, -1, 2492, 2492, 2492, -2, -2, -2,
-            ); //  --  3(3):修改事件定义:当前场景:当前场景事件编号
-            instruct_2(events, 11, 3); //  2(2):得到物品[人蔘][3]
-        }
-        697 => {
-            instruct_3(
-                events, -2, -2, -2, -2, -1, -1, -1, 2492, 2492, 2492, -2, -2, -2,
-            ); //  --  3(3):修改事件定义:当前场景:当前场景事件编号
-            instruct_2(events, 3, 3); //   2(2):得到物品[小还丹][3]
-        }
-        698 => {
-            instruct_3(
-                events, -2, -2, -2, -2, -1, -1, -1, 2492, 2492, 2492, -2, -2, -2,
-            ); // --  3(3):修改事件定义:当前场景:当前场景事件编号
-            instruct_2(events, 22, 3); // --  2(2):得到物品[黄连解毒丸][3]
-        }
-        699 => {
-            instruct_3(
-                events, -2, -2, -2, -2, -1, -1, -1, 2612, 2612, 2612, -2, -2, -2,
-            ); //   --  3(3):修改事件定义:当前场景:当前场景事件编号
-            instruct_2(events, 186, 5); // --  2(2):得到物品[智慧果][5]
-        }
-        700 => {
-            instruct_3(
-                events, -2, -2, -2, -2, -1, -1, -1, 3500, 3500, 3500, -2, -2, -2,
-            ); //  3(3):修改事件定义:当前场景:当前场景事件编号
-            instruct_2(events, 174, 100); //  2(2):得到物品[银两][100]
-        }
-        i => {
-            println!("event i {}", i);
-            enter_inter = false;
-        }
-    }
-    if enter_inter {
-        state.push(GameState::Interaction).unwrap();
-    }
+    let mut ev_guard = S_EVENT_QUE.lock().unwrap();
+    ev_guard.clear();
+    drop(ev_guard);
+    println!("exec event {}", event_id);
+    S_LUA.lock().unwrap().context(|lua_ctx| {
+        let mut data = vec![];
+        File::open(format!("assets/script/oldevent_{}.lua", event_id))
+            .unwrap()
+            .read_to_end(&mut data)
+            .unwrap();
+        lua_ctx.load(data.as_slice()).exec().unwrap();
+        let mut ev_guard = S_EVENT_QUE.lock().unwrap();
+        events.extend(ev_guard.clone().into_iter());
+        ev_guard.clear();
+    });
+
+    state.push(GameState::Interaction).unwrap();
 }
 
-fn instruct_2(events: &mut Events<JyEvent>, thing: i32, num: i32) {
-    events.send(JyEvent::Instruct2(thing, num));
+fn instruct_27(id: i16, start_pic: i16, end_pic: i16) -> JyEvent {
+    JyEvent::Sprite
+}
+
+fn instruct_2(thing: i16, num: i16) -> JyEvent {
+    JyEvent::Instruct2(thing, num)
+}
+
+fn instruct_1(talk_id: i32, head_id: i32, flag: i32) -> JyEvent {
+    JyEvent::Dialog("Hello world".into())
+}
+
+fn instruct_0() -> JyEvent {
+    JyEvent::Cls
 }
 
 fn instruct_3(
-    events: &mut ResMut<Events<JyEvent>>,
     s: i16,
     d: i16,
     v0: i16,
@@ -377,7 +377,7 @@ fn instruct_3(
     v8: i16,
     v9: i16,
     v10: i16,
-) {
+) -> JyEvent {
     let v = vec![v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10];
     let t = v
         .into_iter()
@@ -389,8 +389,100 @@ fn instruct_3(
             acc
         });
 
-    let data = JyEvent::Data(s, d, t);
-    events.send(data);
+    JyEvent::Data(s, d, t)
 }
 
-pub fn setup() {}
+fn init_lua() -> Lua {
+    let lua = Lua::new();
+
+    lua.context(|lua_ctx| {
+        let globals = lua_ctx.globals();
+        globals
+            .set(
+                "instruct_0",
+                lua_ctx
+                    .create_function_mut(|_, ()| {
+                        let ev = instruct_0();
+                        let mut ev_guard = S_EVENT_QUE.lock().unwrap();
+                        ev_guard.push(ev);
+                        Ok(true)
+                    })
+                    .unwrap(),
+            )
+            .unwrap();
+
+        globals
+            .set(
+                "instruct_1",
+                lua_ctx
+                    .create_function_mut(|_, (talk_id, head_id, flag): (i32, i32, i32)| {
+                        let ev = instruct_1(talk_id, head_id, flag);
+                        let mut ev_guard = S_EVENT_QUE.lock().unwrap();
+                        ev_guard.push(ev);
+                        Ok(true)
+                    })
+                    .unwrap(),
+            )
+            .unwrap();
+
+        globals
+            .set(
+                "instruct_2",
+                lua_ctx
+                    .create_function_mut(|_, (thing_id, num): (i16, i16)| {
+                        let ev = instruct_2(thing_id, num);
+                        let mut ev_guard = S_EVENT_QUE.lock().unwrap();
+                        ev_guard.push(ev);
+                        Ok(true)
+                    })
+                    .unwrap(),
+            )
+            .unwrap();
+
+        globals
+            .set(
+                "instruct_3",
+                lua_ctx
+                    .create_function_mut(
+                        |_,
+                         (s, d, v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10): (
+                            i16,
+                            i16,
+                            i16,
+                            i16,
+                            i16,
+                            i16,
+                            i16,
+                            i16,
+                            i16,
+                            i16,
+                            i16,
+                            i16,
+                            i16,
+                        )| {
+                            let ev = instruct_3(s, d, v0, v1, v2, v3, v4, v5, v6, v7, v8, v9, v10);
+                            let mut ev_guard = S_EVENT_QUE.lock().unwrap();
+                            ev_guard.push(ev);
+                            Ok(true)
+                        },
+                    )
+                    .unwrap(),
+            )
+            .unwrap();
+
+        globals
+            .set(
+                "instruct_27",
+                lua_ctx
+                    .create_function_mut(|_, (id, start_pic, end_pic): (i16, i16, i16)| {
+                        let ev = instruct_27(id, start_pic, end_pic);
+                        let mut ev_guard = S_EVENT_QUE.lock().unwrap();
+                        ev_guard.push(ev);
+                        Ok(true)
+                    })
+                    .unwrap(),
+            )
+            .unwrap();
+    });
+    lua
+}
