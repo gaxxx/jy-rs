@@ -1,4 +1,4 @@
-use crate::game::{smap::Me, mmap::ImageCache, util::RenderHelper};
+use crate::game::{smap::{Me, SMapScreen}, mmap::ImageCache, util::RenderHelper};
 
 use super::*;
 

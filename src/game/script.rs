@@ -6,7 +6,7 @@ use lazy_static::lazy_static;
 
 use crate::game::structs::*;
 use crate::game::GameState;
-use crate::game::instructs::*;
+pub use crate::game::instructs::*;
 use rlua::Lua;
 use std::fs::File;
 use std::io::*;
