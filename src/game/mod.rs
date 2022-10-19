@@ -6,6 +6,7 @@ use bevy::ecs::schedule::ShouldRun;
 use bevy::prelude::*;
 
 mod assets;
+mod instructs;
 mod hint;
 mod load;
 mod mmap;
